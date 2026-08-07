@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using BA.Pointer.Interop;
 using BA.Pointer.Models;
 using BA.Pointer.Services;
@@ -11,6 +13,8 @@ namespace BA.Pointer.Overlay;
 public sealed class DCompositionRenderer : IDisposable
 {
     private const double OriginalRingHdrIntensity = 5.992156982421875;
+    private const double GraphicsMaintenanceIntervalMs = 30_000;
+    private const double GraphicsRecoveryCooldownMs = 5_000;
 
     private sealed record TrailPoint(Vector2 Position, double Time);
 
@@ -67,6 +71,10 @@ public sealed class DCompositionRenderer : IDisposable
     private bool _initialized;
     private bool _lastFrameHadContent = true;
     private double _lastForegroundCheck;
+    private double _nextGraphicsMaintenanceAt;
+    private double _nextGraphicsRecoveryAt;
+    private int _graphicsRecoveryCount;
+    private string _lastRecoveryReason = "none";
     private int _originX;
     private int _originY;
     private int _width;
@@ -83,11 +91,12 @@ public sealed class DCompositionRenderer : IDisposable
 
     public string GetDiagnosticState()
     {
-        var deviceStatus = _pipeline?.GetDeviceStatus() ?? "pipeline-unavailable";
+        var graphicsState = _pipeline?.GetDiagnosticState() ?? "pipeline=unavailable";
         return $"rendererRunning={_running}, initialized={_initialized}, targetActive={_targetActive}, " +
                $"activeTouches={_activeTouches.Count}, touches={_touches.Count}, " +
                $"clickEffects={_clickEffects.Count}, moveParticles={_moveParticles.Count}, " +
-               $"bounds={_originX},{_originY},{_width}x{_height}, device={deviceStatus}";
+               $"bounds={_originX},{_originY},{_width}x{_height}, recoveries={_graphicsRecoveryCount}, " +
+               $"lastRecovery={_lastRecoveryReason}, {graphicsState}";
     }
 
     public void Configure(PointerSettings settings)
@@ -157,6 +166,10 @@ public sealed class DCompositionRenderer : IDisposable
     {
         if (!_running) return;
         var now = _clock.Elapsed.TotalMilliseconds;
+        if (!_initialized && !TryRecoverGraphics("pipeline unavailable", null, now)) return;
+        MaintainGraphics(now);
+        if (!_initialized) return;
+
         UpdateTargetState(now);
         if (!_targetActive)
         {
@@ -164,7 +177,7 @@ public sealed class DCompositionRenderer : IDisposable
             _touches.Clear();
             _clickEffects.Clear();
             _moveParticles.Clear();
-            RenderFrame(now);
+            RenderFrameSafely(now);
             return;
         }
 
@@ -174,16 +187,108 @@ public sealed class DCompositionRenderer : IDisposable
                 UpdateTouchPosition(touch, new Vector2(cursor.X - _originX, cursor.Y - _originY), now);
         }
         PruneExpired(now);
-        RenderFrame(now);
+        RenderFrameSafely(now);
     }
 
     private void InitializeGraphics()
     {
         RefreshBounds();
-        _pipeline = new D3D11EffectPipeline(_hwnd, _assetDirectory, _width, _height);
-        _initialized = true;
-        _lastFrameHadContent = true;
-        RenderFrame(_clock.Elapsed.TotalMilliseconds);
+        var pipeline = new D3D11EffectPipeline(_hwnd, _assetDirectory, _width, _height);
+        try
+        {
+            _pipeline = pipeline;
+            _initialized = true;
+            _lastFrameHadContent = true;
+            _nextGraphicsMaintenanceAt = _clock.Elapsed.TotalMilliseconds + GraphicsMaintenanceIntervalMs;
+            RenderFrame(_clock.Elapsed.TotalMilliseconds);
+        }
+        catch
+        {
+            _pipeline = null;
+            _initialized = false;
+            try { pipeline.Dispose(); }
+            catch { }
+            throw;
+        }
+    }
+
+    private void MaintainGraphics(double now)
+    {
+        if (now < _nextGraphicsMaintenanceAt || _pipeline is null) return;
+        _nextGraphicsMaintenanceAt = now + GraphicsMaintenanceIntervalMs;
+
+        try
+        {
+            var originX = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
+            var originY = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
+            var width = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN));
+            var height = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN));
+            if (originX != _originX || originY != _originY || width != _width || height != _height)
+            {
+                Resize();
+            }
+            else if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
+                         NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to refresh overlay window placement.");
+            }
+
+            _pipeline.RefreshCompositionBinding();
+        }
+        catch (Exception exception)
+        {
+            TryRecoverGraphics("composition maintenance failed", exception, now);
+        }
+    }
+
+    private void RenderFrameSafely(double now)
+    {
+        try
+        {
+            RenderFrame(now);
+            if (_pipeline?.NeedsRecovery == true)
+                throw new InvalidOperationException("DXGI Present remained occluded for three consecutive frames.");
+        }
+        catch (Exception exception)
+        {
+            TryRecoverGraphics("rendering failed", exception, now);
+        }
+    }
+
+    private bool TryRecoverGraphics(string reason, Exception? cause, double now)
+    {
+        if (now < _nextGraphicsRecoveryAt) return false;
+        _nextGraphicsRecoveryAt = now + GraphicsRecoveryCooldownMs;
+        if (cause is not null) ErrorLog.Write(cause, "Renderer.RecoveryTrigger");
+        ErrorLog.WriteWarning("Renderer", $"Rebuilding graphics pipeline. reason={reason}");
+
+        var previousPipeline = _pipeline;
+        _pipeline = null;
+        _initialized = false;
+        try
+        {
+            previousPipeline?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            ErrorLog.Write(exception, "Renderer.DisposeFailedPipeline");
+        }
+
+        try
+        {
+            InitializeGraphics();
+            _graphicsRecoveryCount++;
+            _lastRecoveryReason = reason.Replace(' ', '_');
+            ErrorLog.WriteInfo("Renderer", $"Graphics pipeline recovered. count={_graphicsRecoveryCount}, reason={reason}");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _pipeline = null;
+            _initialized = false;
+            ErrorLog.Write(exception, "Renderer.RecoveryFailed");
+            return false;
+        }
     }
 
     private void Resize()

@@ -4,7 +4,7 @@
 
 ## 下载
 
-从 [v1.0.0 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.0.0) 下载 `BA.Pointer.WinUI.exe`。
+从 [v1.0.1 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.0.1) 下载 `BA.Pointer.WinUI.exe`。
 
 这是一个面向 Windows x64 的自包含单文件版本，无需另外安装 .NET 或 Windows App SDK。程序首次运行时会将内置的原生运行库和资源解压到用户临时目录，但分发文件本身只有一个 EXE。
 
@@ -15,7 +15,14 @@
 - 可调总体缩放、碎片大小、碎片密度、颜色过渡、动画时长、拖尾和 Bloom 参数
 - 支持“全部桌面”与“前台应用全屏时暂停”两种生效范围
 - 支持托盘控制、全局 `Ctrl+Alt+P` 开关、设置持久化、静默启动和管理员启动
+- 自动检测并恢复 Direct3D/DirectComposition 显示链路，开关特效时完整重建覆盖层
 - 停止效果或退出程序时恢复原系统指针
+
+## v1.0.1
+
+- 修复长时间运行后点击与拖尾特效可能不再显示的问题
+- 增加 SwapChain Present、DirectComposition、覆盖窗口及自动恢复诊断日志
+- 软件内开关现在会完整重建覆盖窗口和图形管线
 
 ## 构建
 
@@ -30,7 +37,7 @@ Release 配置会生成自包含单文件 EXE。素材来自 `BA.Pointer\Assets`
 
 ## 数据目录
 
-设置文件和生成的光标文件保存在 `%APPDATA%\BA.Pointer`。
+设置文件和生成的光标文件保存在 `%APPDATA%\BA.Pointer`，运行日志位于 `%APPDATA%\BA.Pointer\runtime.log`。
 
 ## 声明
 
@@ -46,7 +53,7 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download `BA.Pointer.WinUI.exe` from the [v1.0.0 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.0.0). It is a self-contained single-file Windows x64 build and does not require a separate .NET or Windows App SDK installation. Bundled runtime files are extracted to the user's temporary directory on first launch.
+Download `BA.Pointer.WinUI.exe` from the [v1.0.1 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.0.1). It is a self-contained single-file Windows x64 build and does not require a separate .NET or Windows App SDK installation. Bundled runtime files are extracted to the user's temporary directory on first launch.
 
 ### Features
 
@@ -55,6 +62,13 @@ Download `BA.Pointer.WinUI.exe` from the [v1.0.0 release](https://github.com/Dr-
 - Adjustable scale, fragments, color transition, density, trail, duration, and Bloom parameters
 - Desktop-wide effects or automatic pause while a foreground application is fullscreen
 - Tray controls, global `Ctrl+Alt+P` toggle, silent startup, and optional administrator startup
+- Automatic Direct3D/DirectComposition health checks and overlay recovery
+
+### v1.0.1
+
+- Fixes effects becoming invisible after extended runtime
+- Adds detailed SwapChain, DirectComposition, overlay, and recovery diagnostics
+- Recreates the complete overlay and graphics pipeline when effects are toggled
 
 ### Build
 
@@ -65,7 +79,7 @@ dotnet build .\BA.Pointer.WinUI\BA.Pointer.WinUI.csproj -c Debug
 dotnet publish .\BA.Pointer.WinUI\BA.Pointer.WinUI.csproj -c Release -r win-x64 -o .\dist\BA.Pointer.WinUI-Release
 ```
 
-Settings and the generated cursor file are stored under `%APPDATA%\BA.Pointer`.
+Settings, the generated cursor file, and `runtime.log` are stored under `%APPDATA%\BA.Pointer`.
 
 ### Notice
 

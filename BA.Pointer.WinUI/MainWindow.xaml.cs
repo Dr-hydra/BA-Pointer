@@ -16,7 +16,7 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.0.0";
+    private const string AppVersion = "1.0.1";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
     private const int HotKeyId = 0xBA01;
     private const uint TrayCallbackMessage = NativeMethods.WM_APP + 43;

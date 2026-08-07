@@ -194,7 +194,7 @@
                                     <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.0.0" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.0.1" FontWeight="SemiBold" />
                                     <TextBlock Text="Windows 桌面指针与特效工具" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="WinUI 3 · Direct3D 11 · DirectComposition" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>

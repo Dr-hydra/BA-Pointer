@@ -67,7 +67,9 @@ public sealed class PointerEffectController : IDisposable
             _mouseHook.Dispose();
             _mouseHook = null;
         }
-        _overlay?.Stop();
+        var overlay = _overlay;
+        _overlay = null;
+        overlay?.Dispose();
         if (_cursorApplied) { _cursorInstaller.Restore(); _cursorApplied = false; }
         StateChanged?.Invoke(false);
     }
@@ -78,8 +80,6 @@ public sealed class PointerEffectController : IDisposable
     public void Dispose()
     {
         Stop();
-        _overlay?.Dispose();
-        _overlay = null;
         GC.SuppressFinalize(this);
     }
 }

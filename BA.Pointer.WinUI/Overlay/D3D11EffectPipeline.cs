@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
+using BA.Pointer.Services;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DirectComposition;
@@ -25,6 +26,8 @@ internal enum EffectTexture
 
 internal sealed class D3D11EffectPipeline : IDisposable
 {
+    private const int DxgiStatusOccluded = 0x087A0001;
+
     private const int MaximumBloomLevels = 6;
     private const uint ShaderCompileFlags = (1u << 11) | (1u << 15);
 
@@ -148,6 +151,13 @@ internal sealed class D3D11EffectPipeline : IDisposable
     private readonly List<RenderTexture> _bloomDown = new();
     private readonly List<RenderTexture> _bloomUp = new();
     private bool _disposed;
+    private long _presentCount;
+    private long _compositionCommitCount;
+    private int _lastPresentCode;
+    private int _lastCompositionCheckCode;
+    private int _lastCompositionCommitCode;
+    private int _occludedPresentStreak;
+    private bool _compositionValid = true;
 
     public D3D11EffectPipeline(IntPtr hwnd, string assetDirectory, int width, int height)
     {
@@ -172,12 +182,39 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _height = height;
         _context.ClearState();
         DisposeSizeDependentResources();
-        _swapChain.ResizeBuffers(2, (uint)_width, (uint)_height, Format.B8G8R8A8_UNorm, SwapChainFlags.None);
+        _swapChain.ResizeBuffers(2, (uint)_width, (uint)_height, Format.B8G8R8A8_UNorm, SwapChainFlags.None).CheckError();
         CreateSizeDependentResources();
-        _compositionDevice.Commit();
+        RefreshCompositionBinding();
     }
 
-    public string GetDeviceStatus() => _device.DeviceRemovedReason.ToString();
+    public string GetDiagnosticState() =>
+        $"device={_device.DeviceRemovedReason}, presentCount={_presentCount}, " +
+        $"lastPresent={FormatResult(_lastPresentCode)}, occludedStreak={_occludedPresentStreak}, " +
+        $"dcompValid={_compositionValid}, dcompCheck={FormatResult(_lastCompositionCheckCode)}, " +
+        $"dcompCommit={FormatResult(_lastCompositionCommitCode)}, commitCount={_compositionCommitCount}";
+
+    public bool NeedsRecovery => _occludedPresentStreak >= 3;
+
+    public void RefreshCompositionBinding()
+    {
+        var deviceResult = _device.DeviceRemovedReason;
+        if (deviceResult.Failure)
+            throw new InvalidOperationException($"D3D11 device is unavailable: {deviceResult}");
+
+        var checkResult = _compositionDevice.CheckDeviceState(out var compositionValid);
+        _lastCompositionCheckCode = checkResult.Code;
+        _compositionValid = compositionValid;
+        if (checkResult.Failure || !_compositionValid)
+            throw new InvalidOperationException(
+                $"DirectComposition device is unavailable: check={checkResult}, valid={_compositionValid}");
+
+        _compositionVisual.SetContent(_swapChain).CheckError();
+        _compositionTarget.SetRoot(_compositionVisual).CheckError();
+        var commitResult = _compositionDevice.Commit();
+        _lastCompositionCommitCode = commitResult.Code;
+        _compositionCommitCount++;
+        commitResult.CheckError();
+    }
 
     public void BeginScene()
     {
@@ -315,6 +352,17 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _context.Draw(3, 0);
         UnbindPostProcessTextures();
         var presentResult = _swapChain.Present(0, PresentFlags.None);
+        _presentCount++;
+        var previousPresentCode = _lastPresentCode;
+        _lastPresentCode = presentResult.Code;
+        _occludedPresentStreak = _lastPresentCode == DxgiStatusOccluded ? _occludedPresentStreak + 1 : 0;
+        if (_lastPresentCode != previousPresentCode)
+        {
+            var message = $"Present status changed. result={presentResult}, count={_presentCount}, " +
+                          $"occludedStreak={_occludedPresentStreak}";
+            if (_lastPresentCode == 0) ErrorLog.WriteInfo("D3D11", message);
+            else ErrorLog.WriteWarning("D3D11", message);
+        }
         if (presentResult.Failure)
             throw new InvalidOperationException(
                 $"DXGI Present failed: {presentResult}; deviceRemovedReason={_device.DeviceRemovedReason}");
@@ -345,10 +393,10 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _compositionDevice = Vortice.DirectComposition.DComp.DCompositionCreateDevice<IDCompositionDevice>(dxgiDevice);
         _compositionDevice.CreateTargetForHwnd(_hwnd, true, out _compositionTarget).CheckError();
         _compositionDevice.CreateVisual(out _compositionVisual).CheckError();
-        _compositionVisual.SetContent(_swapChain);
-        _compositionTarget.SetRoot(_compositionVisual);
-        _compositionDevice.Commit();
+        RefreshCompositionBinding();
     }
+
+    private static string FormatResult(int result) => $"0x{unchecked((uint)result):X8}";
 
     private void CreateStaticResources()
     {

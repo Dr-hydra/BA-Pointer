@@ -44,6 +44,7 @@ internal static class NativeMethods
     public const int SM_CYVIRTUALSCREEN = 79;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     public const uint DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    public const uint DWMWA_CLOAKED = 14;
 
     public const uint SPI_SETCURSORS = 0x0057;
     public const uint SPIF_SENDCHANGE = 0x0002;
@@ -152,10 +153,12 @@ internal static class NativeMethods
     [DllImport("user32.dll")] public static extern IntPtr GetDesktopWindow();
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO monitorInfo);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out RECT value, int valueSize);
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeInt(IntPtr hwnd, uint attribute, out int value, int valueSize);
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern ushort RegisterClassEx(ref WNDCLASSEX windowClass);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern IntPtr CreateWindowEx(uint exStyle, string className, string windowName, uint style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);

@@ -85,8 +85,12 @@ public sealed class DCompositionOverlayWindow : IDisposable
             _renderer.Tick();
             if (DateTime.UtcNow < _nextHeartbeatUtc) return;
             _nextHeartbeatUtc = DateTime.UtcNow.AddMinutes(1);
+            var cloakResult = NativeMethods.DwmGetWindowAttributeInt(
+                _hwnd, NativeMethods.DWMWA_CLOAKED, out var cloaked, sizeof(int));
             ErrorLog.WriteInfo("Overlay", $"Heartbeat. hwndValid={NativeMethods.IsWindow(_hwnd)}, " +
-                                          $"timerRunning={sender.IsRunning}, inputEvents={Interlocked.Read(ref _inputEvents)}, " +
+                                          $"visible={NativeMethods.IsWindowVisible(_hwnd)}, cloaked={cloaked}, " +
+                                          $"cloakResult=0x{unchecked((uint)cloakResult):X8}, timerRunning={sender.IsRunning}, " +
+                                          $"inputEvents={Interlocked.Read(ref _inputEvents)}, " +
                                           _renderer.GetDiagnosticState());
         }
         catch (Exception exception)
