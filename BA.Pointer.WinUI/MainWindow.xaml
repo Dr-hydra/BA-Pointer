@@ -200,8 +200,11 @@
                                 </StackPanel>
                             </Grid>
                             <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,24" />
-                            <TextBlock Text="声明" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,12" />
+                            <TextBlock Text="中文说明" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,12" />
+                            <TextBlock Text="BA Pointer 是一款 Windows 桌面指针与点击特效工具，使用 WinUI 3、Direct3D 11 和 DirectComposition 渲染从游戏资源还原的视觉效果。" TextWrapping="Wrap" Margin="0,0,0,10" />
                             <TextBlock Text="本项目为非官方社区工具，与 Blue Archive、Nexon、NAT Games 及其关联方无关。游戏素材版权归原权利人所有，资源仅随本项目用于本地效果还原。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
+                            <TextBlock Text="English" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,12" />
+                            <TextBlock Text="BA Pointer is a Windows desktop pointer and click-effects utility rendered with WinUI 3, Direct3D 11, and DirectComposition. This is an unofficial community project and is not affiliated with Blue Archive, Nexon, NAT Games, or their affiliates. Game assets remain the property of their respective rights holders." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
                             <Button Content="打开 GitHub 项目主页" Click="OnOpenProjectClick" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Grid>
