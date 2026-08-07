@@ -1,0 +1,221 @@
+<Window
+    x:Class="BA.Pointer.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="BA Pointer">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Image Width="28" Height="28" Source="ms-appx:///Assets/PCIcon_MousePoint.png" Stretch="Uniform" />
+            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="BA Pointer" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="DirectComposition" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <NavigationView x:Name="SettingsNavigation"
+                        Grid.Row="1"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        IsPaneToggleButtonVisible="True"
+                        PaneDisplayMode="Left"
+                        OpenPaneLength="210"
+                        CompactPaneLength="48"
+                        SelectionChanged="OnNavigationSelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="EffectsNavItem" Content="效果参数" Tag="effects" IsSelected="True">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE945;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="SystemNavItem" Content="资源与系统" Tag="system">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="AboutNavItem" Content="关于" Tag="about">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="28,18,28,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="3">
+                        <TextBlock x:Name="PageTitle" Text="效果参数" Style="{StaticResource TitleTextBlockStyle}" />
+                        <TextBlock x:Name="PageSubtitle" Text="点击、圆弧 Bloom、碎片和拖尾" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <ToggleSwitch x:Name="EnabledToggle" Grid.Column="1" Header="桌面效果" Toggled="OnEnabledToggled" VerticalAlignment="Center" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="28,0,28,24">
+                        <StackPanel x:Name="EffectsPage" Spacing="0">
+                            <TextBlock Text="FX_Touch" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,18" />
+
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="总体缩放" />
+                                <TextBlock x:Name="EffectScaleValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="EffectScaleSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.1" Maximum="2.5" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="效果亮度" />
+                                <TextBlock x:Name="EffectOpacityValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="EffectOpacitySlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.1" Maximum="1" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="动画时长" />
+                                <TextBlock x:Name="EffectDurationValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="EffectDurationSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.5" Maximum="2.5" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,24" />
+                            <TextBlock Text="圆弧泛光" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
+
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bloom 半径" />
+                                <TextBlock x:Name="BloomRadiusValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="BloomRadiusSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="24" StepFrequency="0.5" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Bloom 强度" />
+                                <TextBlock x:Name="BloomStrengthValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="BloomStrengthSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="1.5" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,24" />
+                            <TextBlock Text="拖尾与移动碎片" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
+
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="碎片大小" />
+                                <TextBlock x:Name="FragmentScaleValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="FragmentScaleSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.5" Maximum="2.5" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="碎片颜色过渡" />
+                                <TextBlock x:Name="FragmentTransitionValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="FragmentTransitionSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.25" Maximum="2" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="拖尾宽度" />
+                                <TextBlock x:Name="TrailWidthValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="TrailWidthSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.5" Maximum="4" StepFrequency="0.1" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="拖尾持续时间" />
+                                <TextBlock x:Name="TrailDurationValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="TrailDurationSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="100" Maximum="800" StepFrequency="10" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="碎片密度" />
+                                <TextBlock x:Name="DistanceEmissionValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="DistanceEmissionSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.25" Maximum="3" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="SystemPage" Visibility="Collapsed" Spacing="0">
+                            <TextBlock Text="运行方式" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,18" />
+                            <Grid Margin="0,0,0,18">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="生效范围" VerticalAlignment="Center" />
+                                <ComboBox x:Name="TargetCombo" Grid.Column="1" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="全部" />
+                                    <ComboBoxItem Content="有应用全屏时暂停" />
+                                </ComboBox>
+                            </Grid>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="渲染刷新率" VerticalAlignment="Center" />
+                                <ComboBox x:Name="FpsCombo" Grid.Column="1" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="60 Hz" Tag="60" />
+                                    <ComboBoxItem Content="120 Hz" Tag="120" />
+                                    <ComboBoxItem Content="144 Hz" Tag="144" />
+                                </ComboBox>
+                            </Grid>
+                            <ToggleSwitch x:Name="SystemCursorToggle" Header="使用游戏素材替换系统默认箭头" Margin="0,0,0,12" />
+                            <ToggleSwitch x:Name="StartupToggle" Header="登录 Windows 后自动启动" Margin="0,0,0,12" />
+                            <ToggleSwitch x:Name="SilentStartToggle" Header="启动时隐藏到托盘" Margin="0,0,0,12" />
+                            <ToggleSwitch x:Name="RunAsAdministratorToggle" Header="以管理员身份启动" Margin="0,0,0,12" />
+
+                            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,12,0,24" />
+                            <TextBlock Text="本地资源" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <Border Width="72" Height="72" HorizontalAlignment="Left" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+                                    <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="7" VerticalAlignment="Center">
+                                    <TextBlock Text="PCIcon_MousePoint.png" FontWeight="SemiBold" />
+                                    <TextBlock Text="随软件发布，不依赖游戏目录" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <Button Content="恢复系统光标" Click="OnRestoreCursorClick" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="AboutPage" Visibility="Collapsed" Spacing="0">
+                            <TextBlock Text="BA Pointer" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,8,0,18" />
+                            <Grid Margin="0,0,0,24">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <Border Width="72" Height="72" HorizontalAlignment="Left" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+                                    <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.0.0" FontWeight="SemiBold" />
+                                    <TextBlock Text="Windows 桌面指针与特效工具" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="WinUI 3 · Direct3D 11 · DirectComposition" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,24" />
+                            <TextBlock Text="声明" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,12" />
+                            <TextBlock Text="本项目为非官方社区工具，与 Blue Archive、Nexon、NAT Games 及其关联方无关。游戏素材版权归原权利人所有，资源仅随本项目用于本地效果还原。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
+                            <Button Content="打开 GitHub 项目主页" Click="OnOpenProjectClick" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Padding="28,12" Background="{ThemeResource LayerFillColorAltBrush}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <InfoBar x:Name="StatusBar" IsOpen="True" IsClosable="False" Severity="Informational" Title="效果已停止" HorizontalAlignment="Stretch" Margin="0,0,16,0" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Content="重置参数" Click="OnResetClick" />
+                        <Button Content="应用并保存" Style="{StaticResource AccentButtonStyle}" Click="OnApplyClick" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>

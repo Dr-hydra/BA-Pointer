@@ -1,0 +1,12 @@
+<Window x:Class="BA.Pointer.Overlay.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True">
+    <local:EffectsSurface x:Name="Surface" xmlns:local="clr-namespace:BA.Pointer.Overlay" />
+</Window>
