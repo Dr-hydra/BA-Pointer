@@ -19,6 +19,9 @@ public sealed class DCompositionOverlayWindow : IDisposable
     private readonly DCompositionRenderer _renderer;
     private PointerSettings _settings;
     private IntPtr _hwnd;
+    private long _inputEvents;
+    private DateTime _nextHeartbeatUtc = DateTime.UtcNow;
+    private bool _tickFaulted;
 
     public DCompositionOverlayWindow(DispatcherQueue dispatcher, PointerSettings settings)
     {
@@ -46,15 +49,19 @@ public sealed class DCompositionOverlayWindow : IDisposable
 
     public void Start()
     {
+        _tickFaulted = false;
         _renderer.Start();
         UpdateTimerInterval();
         _timer.Start();
+        _nextHeartbeatUtc = DateTime.UtcNow;
+        ErrorLog.WriteInfo("Overlay", $"Started. hwnd=0x{_hwnd.ToInt64():X}, intervalMs={_timer.Interval.TotalMilliseconds:0.###}");
     }
 
     public void Stop()
     {
         _timer.Stop();
         _renderer.Stop();
+        ErrorLog.WriteInfo("Overlay", $"Stopped. tickFaulted={_tickFaulted}, inputEvents={Interlocked.Read(ref _inputEvents)}");
     }
 
     public void Configure(PointerSettings settings)
@@ -64,10 +71,31 @@ public sealed class DCompositionOverlayWindow : IDisposable
         UpdateTimerInterval();
     }
 
-    public void SetPointerState(PointerMouseButton button, bool isDown, int x, int y) =>
-        _dispatcher.TryEnqueue(() => _renderer.SetPointerState(button, isDown, x, y));
+    public void SetPointerState(PointerMouseButton button, bool isDown, int x, int y)
+    {
+        Interlocked.Increment(ref _inputEvents);
+        if (!_dispatcher.TryEnqueue(() => _renderer.SetPointerState(button, isDown, x, y)))
+            ErrorLog.WriteWarning("Overlay", "Dispatcher rejected a pointer event.");
+    }
 
-    private void OnTick(DispatcherQueueTimer sender, object args) => _renderer.Tick();
+    private void OnTick(DispatcherQueueTimer sender, object args)
+    {
+        try
+        {
+            _renderer.Tick();
+            if (DateTime.UtcNow < _nextHeartbeatUtc) return;
+            _nextHeartbeatUtc = DateTime.UtcNow.AddMinutes(1);
+            ErrorLog.WriteInfo("Overlay", $"Heartbeat. hwndValid={NativeMethods.IsWindow(_hwnd)}, " +
+                                          $"timerRunning={sender.IsRunning}, inputEvents={Interlocked.Read(ref _inputEvents)}, " +
+                                          _renderer.GetDiagnosticState());
+        }
+        catch (Exception exception)
+        {
+            sender.Stop();
+            _tickFaulted = true;
+            ErrorLog.Write(exception, "Overlay.Tick");
+        }
+    }
 
     private void UpdateTimerInterval() =>
         _timer.Interval = TimeSpan.FromMilliseconds(1000d / Math.Clamp(_settings.FrameRate, 30, 240));

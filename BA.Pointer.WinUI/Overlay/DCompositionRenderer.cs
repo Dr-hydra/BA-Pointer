@@ -81,6 +81,15 @@ public sealed class DCompositionRenderer : IDisposable
 
     public bool IsRunning => _running;
 
+    public string GetDiagnosticState()
+    {
+        var deviceStatus = _pipeline?.GetDeviceStatus() ?? "pipeline-unavailable";
+        return $"rendererRunning={_running}, initialized={_initialized}, targetActive={_targetActive}, " +
+               $"activeTouches={_activeTouches.Count}, touches={_touches.Count}, " +
+               $"clickEffects={_clickEffects.Count}, moveParticles={_moveParticles.Count}, " +
+               $"bounds={_originX},{_originY},{_width}x{_height}, device={deviceStatus}";
+    }
+
     public void Configure(PointerSettings settings)
     {
         _settings = settings;

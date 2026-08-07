@@ -15,12 +15,24 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        UnhandledException += (_, eventArgs) =>
+            ErrorLog.Write(eventArgs.Exception, "App.UnhandledException");
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+            ErrorLog.Write(eventArgs.ExceptionObject as Exception ??
+                           new InvalidOperationException($"Unhandled non-exception object: {eventArgs.ExceptionObject}"),
+                "AppDomain.UnhandledException");
+        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+            ErrorLog.Write(eventArgs.Exception, "TaskScheduler.UnobservedTaskException");
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         var settings = new SettingsStore().Load();
-        if (settings.RunAsAdministrator && !IsRunningAsAdministrator())
+        var isAdministrator = IsRunningAsAdministrator();
+        ErrorLog.WriteInfo("App", $"Launch requested. version={GetType().Assembly.GetName().Version}, " +
+                                  $"administrator={isAdministrator}, administratorRequested={settings.RunAsAdministrator}, " +
+                                  $"silent={settings.SilentStart}, enabled={settings.Enabled}");
+        if (settings.RunAsAdministrator && !isAdministrator)
         {
             try
             {
@@ -32,27 +44,31 @@ public partial class App : Application
                     UseShellExecute = true,
                     Verb = "runas"
                 });
+                ErrorLog.WriteInfo("App", "Elevated child process started; exiting bootstrap process.");
                 Exit();
                 return;
             }
             catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
             {
                 // The user declined the UAC prompt; continue without elevation.
+                ErrorLog.WriteWarning("App", "UAC elevation was cancelled; continuing without elevation.");
             }
             catch (Exception exception)
             {
-                ErrorLog.Write(exception);
+                ErrorLog.Write(exception, "App.Elevation");
             }
         }
 
         _mutex = new Mutex(true, "Local\\BA.Pointer.Singleton.WinUI", out var createdNew);
         if (!createdNew)
         {
+            ErrorLog.WriteWarning("App", "Duplicate instance detected; exiting new process.");
             Exit();
             return;
         }
 
         _window = new MainWindow();
+        ErrorLog.WriteInfo("App", $"Main window created. silent={settings.SilentStart}");
         if (!settings.SilentStart) _window.Activate();
     }
 
@@ -64,6 +80,7 @@ public partial class App : Application
 
     public void Shutdown()
     {
+        ErrorLog.WriteInfo("App", "Application shutdown requested.");
         try { _mutex?.ReleaseMutex(); } catch (ApplicationException) { }
         _mutex?.Dispose();
         _mutex = null;

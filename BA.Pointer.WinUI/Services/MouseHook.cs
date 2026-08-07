@@ -9,7 +9,10 @@ public sealed class MouseHook : IDisposable
 {
     private NativeMethods.LowLevelMouseProc? _callback;
     private IntPtr _hook;
+    private long _eventCount;
     public event Action<PointerMouseButton, bool, int, int>? MouseButtonChanged;
+
+    public long EventCount => Interlocked.Read(ref _eventCount);
 
     public void Start()
     {
@@ -17,6 +20,7 @@ public sealed class MouseHook : IDisposable
         _callback = HookCallback;
         _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WH_MOUSE_LL, _callback, NativeMethods.GetModuleHandle(null), 0);
         if (_hook == IntPtr.Zero) throw new InvalidOperationException("无法安装全局鼠标监听。");
+        ErrorLog.WriteInfo("MouseHook", $"Installed. handle=0x{_hook.ToInt64():X}");
     }
 
     private IntPtr HookCallback(int code, IntPtr wParam, IntPtr lParam)
@@ -35,6 +39,7 @@ public sealed class MouseHook : IDisposable
             };
             if (change is not null)
             {
+                Interlocked.Increment(ref _eventCount);
                 var data = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
                 MouseButtonChanged?.Invoke(change.Value.Button, change.Value.IsDown, data.pt.X, data.pt.Y);
             }
@@ -44,7 +49,11 @@ public sealed class MouseHook : IDisposable
 
     public void Dispose()
     {
-        if (_hook != IntPtr.Zero) NativeMethods.UnhookWindowsHookEx(_hook);
+        if (_hook != IntPtr.Zero)
+        {
+            var removed = NativeMethods.UnhookWindowsHookEx(_hook);
+            ErrorLog.WriteInfo("MouseHook", $"Removed. success={removed}, events={EventCount}");
+        }
         _hook = IntPtr.Zero;
         _callback = null;
         GC.SuppressFinalize(this);

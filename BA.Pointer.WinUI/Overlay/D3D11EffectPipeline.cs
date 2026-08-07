@@ -177,6 +177,8 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _compositionDevice.Commit();
     }
 
+    public string GetDeviceStatus() => _device.DeviceRemovedReason.ToString();
+
     public void BeginScene()
     {
         if (_scene is null || _foreground is null) return;
@@ -312,7 +314,10 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _context.PSSetConstantBuffer(1, _postConstants);
         _context.Draw(3, 0);
         UnbindPostProcessTextures();
-        _swapChain.Present(0, PresentFlags.None);
+        var presentResult = _swapChain.Present(0, PresentFlags.None);
+        if (presentResult.Failure)
+            throw new InvalidOperationException(
+                $"DXGI Present failed: {presentResult}; deviceRemovedReason={_device.DeviceRemovedReason}");
     }
 
     private void CreateDeviceAndComposition()

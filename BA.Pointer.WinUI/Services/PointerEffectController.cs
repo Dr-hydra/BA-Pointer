@@ -23,9 +23,15 @@ public sealed class PointerEffectController : IDisposable
 
     public void Start(PointerSettings settings, string cursorImagePath)
     {
-        if (IsRunning) { ApplySettings(settings, cursorImagePath); return; }
+        if (IsRunning)
+        {
+            ErrorLog.WriteInfo("Controller", "Start requested while running; applying settings to existing pipeline.");
+            ApplySettings(settings, cursorImagePath);
+            return;
+        }
         try
         {
+            ErrorLog.WriteInfo("Controller", $"Starting. reuseOverlay={_overlay is not null}, frameRate={settings.FrameRate}, target={settings.Target}");
             if (settings.UseSystemCursor) { _cursorInstaller.Install(cursorImagePath); _cursorApplied = true; }
             _overlay ??= new DCompositionOverlayWindow(_dispatcher, settings);
             _overlay.Configure(settings);
@@ -34,10 +40,12 @@ public sealed class PointerEffectController : IDisposable
             _mouseHook.MouseButtonChanged -= OnMouseButtonChanged;
             _mouseHook.MouseButtonChanged += OnMouseButtonChanged;
             _mouseHook.Start();
+            ErrorLog.WriteInfo("Controller", "Started successfully.");
             StateChanged?.Invoke(true);
         }
-        catch
+        catch (Exception exception)
         {
+            ErrorLog.Write(exception, "Controller.Start");
             Stop();
             throw;
         }
@@ -52,6 +60,7 @@ public sealed class PointerEffectController : IDisposable
 
     public void Stop()
     {
+        ErrorLog.WriteInfo("Controller", $"Stopping. overlayExists={_overlay is not null}, hookEvents={_mouseHook?.EventCount ?? 0}");
         if (_mouseHook is not null)
         {
             _mouseHook.MouseButtonChanged -= OnMouseButtonChanged;
