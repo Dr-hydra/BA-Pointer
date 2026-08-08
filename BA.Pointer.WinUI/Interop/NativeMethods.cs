@@ -6,6 +6,7 @@ internal static class NativeMethods
 {
     public const int WH_MOUSE_LL = 14;
     public const int WM_DESTROY = 0x0002;
+    public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_COMMAND = 0x0111;
     public const int WM_NCHITTEST = 0x0084;
     public const int WM_SETICON = 0x0080;
@@ -18,6 +19,7 @@ internal static class NativeMethods
     public const int WM_MBUTTONDOWN = 0x0207;
     public const int WM_MBUTTONUP = 0x0208;
     public const int WM_APP = 0x8000;
+    public const int WM_DPICHANGED = 0x02E0;
     public const int HTTRANSPARENT = -1;
     public const int GWL_EXSTYLE = -20;
     public const int ICON_SMALL = 0;
@@ -43,6 +45,7 @@ internal static class NativeMethods
     public const int SM_CXVIRTUALSCREEN = 78;
     public const int SM_CYVIRTUALSCREEN = 79;
     public const uint MONITOR_DEFAULTTONEAREST = 2;
+    public const uint MONITORINFOF_PRIMARY = 1;
     public const uint DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const uint DWMWA_CLOAKED = 14;
 
@@ -140,6 +143,8 @@ internal static class NativeMethods
 
     public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
     public delegate IntPtr WindowProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public delegate bool MonitorEnumProc(IntPtr monitor, IntPtr monitorDc, ref RECT monitorRect, IntPtr data);
     public delegate IntPtr SubclassProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam, nuint subclassId, nuint referenceData);
 
     [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc callback, IntPtr module, uint threadId);
@@ -156,7 +161,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clipRect, MonitorEnumProc callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO monitorInfo);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out RECT value, int valueSize);
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeInt(IntPtr hwnd, uint attribute, out int value, int valueSize);
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);

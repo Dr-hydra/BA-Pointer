@@ -13,6 +13,7 @@ namespace BA.Pointer.Overlay;
 public sealed class DCompositionRenderer : IDisposable
 {
     private const double OriginalRingHdrIntensity = 5.992156982421875;
+    private const double ReferencePixelsPerUnityUnit = 720;
     private const double GraphicsMaintenanceIntervalMs = 30_000;
     private const double GraphicsRecoveryCooldownMs = 5_000;
 
@@ -59,7 +60,7 @@ public sealed class DCompositionRenderer : IDisposable
     private readonly IntPtr _hwnd;
     private readonly string _assetDirectory;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private readonly Random _random = new();
+    private readonly Random _random;
     private readonly Dictionary<PointerMouseButton, Touch> _activeTouches = new();
     private readonly List<Touch> _touches = new();
     private readonly List<ClickEffect> _clickEffects = new();
@@ -79,12 +80,19 @@ public sealed class DCompositionRenderer : IDisposable
     private int _originY;
     private int _width;
     private int _height;
+    private readonly uint _dpi;
 
-    public DCompositionRenderer(IntPtr hwnd)
+    public DCompositionRenderer(IntPtr hwnd, int originX, int originY, int width, int height, uint dpi, int randomSeed)
     {
         _hwnd = hwnd;
         _assetDirectory = Path.Combine(AppContext.BaseDirectory, "Assets");
-        RefreshBounds();
+        _originX = originX;
+        _originY = originY;
+        _width = Math.Max(1, width);
+        _height = Math.Max(1, height);
+        _dpi = dpi == 0 ? 96 : dpi;
+        _random = new Random(randomSeed);
+        RefreshPlacement();
     }
 
     public bool IsRunning => _running;
@@ -95,7 +103,7 @@ public sealed class DCompositionRenderer : IDisposable
         return $"rendererRunning={_running}, initialized={_initialized}, targetActive={_targetActive}, " +
                $"activeTouches={_activeTouches.Count}, touches={_touches.Count}, " +
                $"clickEffects={_clickEffects.Count}, moveParticles={_moveParticles.Count}, " +
-               $"bounds={_originX},{_originY},{_width}x{_height}, recoveries={_graphicsRecoveryCount}, " +
+               $"bounds={_originX},{_originY},{_width}x{_height}, dpi={_dpi}, recoveries={_graphicsRecoveryCount}, " +
                $"lastRecovery={_lastRecoveryReason}, {graphicsState}";
     }
 
@@ -105,12 +113,7 @@ public sealed class DCompositionRenderer : IDisposable
         if (!_initialized)
         {
             InitializeGraphics();
-            return;
         }
-
-        var width = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN);
-        var height = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN);
-        if (_width != width || _height != height) Resize();
     }
 
     public void Start()
@@ -135,7 +138,7 @@ public sealed class DCompositionRenderer : IDisposable
         NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_HIDE);
     }
 
-    public void SetPointerState(PointerMouseButton button, bool isDown, int screenX, int screenY)
+    public void SetPointerState(PointerMouseButton button, bool isDown, int screenX, int screenY, long eventSequence)
     {
         if (!_running) return;
         var position = new Vector2(screenX - _originX, screenY - _originY);
@@ -153,7 +156,7 @@ public sealed class DCompositionRenderer : IDisposable
             touch.Trail.Add(new TrailPoint(position, now));
             _activeTouches[button] = touch;
             _touches.Add(touch);
-            SpawnClickEffect(position, now);
+            SpawnClickEffect(position, now, new Random(CreateClickSeed(eventSequence, screenX, screenY, button)));
         }
         else if (_activeTouches.Remove(button, out var released))
         {
@@ -192,7 +195,7 @@ public sealed class DCompositionRenderer : IDisposable
 
     private void InitializeGraphics()
     {
-        RefreshBounds();
+        RefreshPlacement();
         var pipeline = new D3D11EffectPipeline(_hwnd, _assetDirectory, _width, _height);
         try
         {
@@ -219,19 +222,9 @@ public sealed class DCompositionRenderer : IDisposable
 
         try
         {
-            var originX = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
-            var originY = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
-            var width = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN));
-            var height = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN));
-            if (originX != _originX || originY != _originY || width != _width || height != _height)
-            {
-                Resize();
-            }
-            else if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
-                         NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
-            {
+            if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
+                    NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to refresh overlay window placement.");
-            }
 
             _pipeline.RefreshCompositionBinding();
         }
@@ -291,28 +284,17 @@ public sealed class DCompositionRenderer : IDisposable
         }
     }
 
-    private void Resize()
+    private void RefreshPlacement()
     {
-        RefreshBounds();
-        _pipeline?.Resize(_width, _height);
-        _lastFrameHadContent = true;
-    }
-
-    private void RefreshBounds()
-    {
-        _originX = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
-        _originY = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
-        _width = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN));
-        _height = Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN));
-        NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
-            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+        if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
+                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to place the monitor overlay window.");
     }
 
     private void RenderFrame(double now)
     {
         if (!_initialized || _pipeline is null) return;
-        var hasContent = _clickEffects.Count > 0 || _moveParticles.Count > 0 ||
-                         _touches.Any(touch => touch.Trail.Count > 1);
+        var hasContent = HasVisibleContent(now);
         if (!hasContent && !_lastFrameHadContent) return;
 
         _pipeline.BeginScene();
@@ -405,9 +387,7 @@ public sealed class DCompositionRenderer : IDisposable
         if (progress is < 0 or > 1) return;
 
         var pixels = GetPixelsPerUnityUnit() * Math.Clamp(_settings.EffectScale, 0.1, 5);
-        var position = particle.Origin +
-                       (particle.ShapeOffset + particle.Direction * (float)(particle.Speed * simulatedAge)) *
-                       (float)pixels;
+        var position = GetTrianglePosition(particle, simulatedAge, pixels);
         var size = particle.Size * pixels * 0.3078824 * TriangleSizeCurve(progress) *
                    Math.Clamp(_settings.FragmentScale, 0.5, 2.5);
         var opacity = Math.Clamp(_settings.EffectOpacity * TriangleOpacity(progress), 0, 1);
@@ -420,39 +400,42 @@ public sealed class DCompositionRenderer : IDisposable
             TriangleColor(progress, _settings.FragmentTransitionScale), (float)opacity, uv, false, 1.86f);
     }
 
-    private void SpawnClickEffect(Vector2 position, double now)
+    private void SpawnClickEffect(Vector2 position, double now, Random random)
     {
         var effect = new ClickEffect { Position = position, StartedAt = now };
         for (var i = 0; i < 2; i++)
         {
             effect.MeshParticles.Add(new MeshParticle
             {
-                StartSize = RandomRange(0.12, 0.14),
-                InitialRotation = RandomRange(0, Math.PI * 2),
-                RotationBlend = _random.NextDouble()
+                StartSize = RandomRange(random, 0.12, 0.14),
+                InitialRotation = RandomRange(random, 0, Math.PI * 2),
+                RotationBlend = random.NextDouble()
             });
         }
         var density = Math.Clamp(_settings.DistanceEmissionScale, 0.25, 3);
         var triangleCount = Math.Clamp(
             (int)Math.Round(4 * density, MidpointRounding.AwayFromZero), 1, 12);
-        for (var i = 0; i < triangleCount; i++) effect.Triangles.Add(CreateTriangle(position, now, false));
+        for (var i = 0; i < triangleCount; i++)
+            effect.Triangles.Add(CreateTriangle(position, now, false, random));
         _clickEffects.Add(effect);
     }
 
-    private TriangleParticle CreateTriangle(Vector2 position, double now, bool movement)
+    private TriangleParticle CreateTriangle(Vector2 position, double now, bool movement, Random random)
     {
-        var angle = RandomRange(0, Math.PI * 2);
+        var angle = RandomRange(random, 0, Math.PI * 2);
         var direction = new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle));
         return new TriangleParticle
         {
             Origin = position,
-            ShapeOffset = movement ? RandomPointInTriangle(0.15) : direction * (float)RandomRange(0.09, 0.098),
+            ShapeOffset = movement
+                ? RandomPointInTriangle(random, 0.15)
+                : direction * (float)RandomRange(random, 0.09, 0.098),
             Direction = direction,
             StartedAt = now,
-            Lifetime = movement ? RandomRange(0.2, 0.4) : RandomRange(0.6, 0.7),
-            Speed = movement ? RandomRange(0.067, 0.1) : RandomRange(0.09, 0.13),
-            Size = RandomRange(0.1, 0.2),
-            AlternateFrame = _random.Next(2) == 1
+            Lifetime = movement ? RandomRange(random, 0.2, 0.4) : RandomRange(random, 0.6, 0.7),
+            Speed = movement ? RandomRange(random, 0.067, 0.1) : RandomRange(random, 0.09, 0.13),
+            Size = RandomRange(random, 0.1, 0.2),
+            AlternateFrame = random.Next(2) == 1
         };
     }
 
@@ -472,7 +455,8 @@ public sealed class DCompositionRenderer : IDisposable
         for (var i = 0; i < count; i++)
         {
             var progress = (i + 1f) / (count + 1f);
-            _moveParticles.Add(CreateTriangle(Vector2.Lerp(touch.LastPosition, position, progress), now, true));
+            _moveParticles.Add(CreateTriangle(
+                Vector2.Lerp(touch.LastPosition, position, progress), now, true, _random));
         }
         touch.LastPosition = position;
     }
@@ -548,21 +532,59 @@ public sealed class DCompositionRenderer : IDisposable
                windowBounds.Bottom >= monitorBounds.Bottom - tolerance;
     }
 
-    private double GetPixelsPerUnityUnit() => Math.Max(1, _height / 2.0);
-
-    private Vector2 RandomPointInTriangle(double scale)
+    private bool HasVisibleContent(double now)
     {
-        var root = Math.Sqrt(_random.NextDouble());
+        var margin = (float)(0.5 * GetPixelsPerUnityUnit() * Math.Clamp(_settings.EffectScale, 0.1, 5));
+        if (_clickEffects.Any(effect => IsNearViewport(effect.Position, margin))) return true;
+        if (_touches.Any(touch => touch.Trail.Any(point => IsNearViewport(point.Position, margin)))) return true;
+
+        var durationScale = Math.Clamp(_settings.EffectDurationScale, 0.1, 5);
+        foreach (var particle in _moveParticles)
+        {
+            var simulatedAge = (now - particle.StartedAt) / 1000 / durationScale;
+            if (simulatedAge < 0 || simulatedAge > particle.Lifetime) continue;
+            var pixels = GetPixelsPerUnityUnit() * Math.Clamp(_settings.EffectScale, 0.1, 5);
+            if (IsNearViewport(GetTrianglePosition(particle, simulatedAge, pixels), margin)) return true;
+        }
+        return false;
+    }
+
+    private static Vector2 GetTrianglePosition(TriangleParticle particle, double simulatedAge, double pixels) =>
+        particle.Origin +
+        (particle.ShapeOffset + particle.Direction * (float)(particle.Speed * simulatedAge)) * (float)pixels;
+
+    private bool IsNearViewport(Vector2 position, float margin) =>
+        position.X >= -margin && position.Y >= -margin &&
+        position.X <= _width + margin && position.Y <= _height + margin;
+
+    private double GetPixelsPerUnityUnit() =>
+        Math.Max(1, ReferencePixelsPerUnityUnit * _dpi / 96d);
+
+    private static Vector2 RandomPointInTriangle(Random random, double scale)
+    {
+        var root = Math.Sqrt(random.NextDouble());
         var a = 1 - root;
-        var b = root * (1 - _random.NextDouble());
+        var b = root * (1 - random.NextDouble());
         var c = 1 - a - b;
         return new Vector2(
             (float)((a * 0.099028 + b * -0.146066 + c * 0.099028) * scale),
             (float)((a * 0.134899 + c * -0.134899) * scale));
     }
 
-    private double RandomRange(double minimum, double maximum) =>
-        minimum + _random.NextDouble() * (maximum - minimum);
+    private static double RandomRange(Random random, double minimum, double maximum) =>
+        minimum + random.NextDouble() * (maximum - minimum);
+
+    private static int CreateClickSeed(
+        long eventSequence, int screenX, int screenY, PointerMouseButton button)
+    {
+        unchecked
+        {
+            var hash = (int)(eventSequence ^ (eventSequence >> 32));
+            hash = hash * 397 ^ screenX;
+            hash = hash * 397 ^ screenY;
+            return hash * 397 ^ (int)button;
+        }
+    }
 
     private static double Lerp(double from, double to, double progress) =>
         from + (to - from) * Math.Clamp(progress, 0, 1);

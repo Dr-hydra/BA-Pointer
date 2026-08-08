@@ -16,8 +16,9 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.0.1";
+    private const string AppVersion = "1.1.0";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
+    private const string BilibiliUrl = "https://space.bilibili.com/441133155";
     private const int HotKeyId = 0xBA01;
     private const uint TrayCallbackMessage = NativeMethods.WM_APP + 43;
     private const uint TrayIconId = 1;
@@ -34,8 +35,10 @@ public sealed partial class MainWindow : Window
     private readonly NativeMethods.SubclassProc _subclassProc;
     private PointerSettings _settings;
     private NativeMethods.NOTIFYICONDATA _trayData;
+    private string? _updateUrl;
     private bool _initializing = true;
     private bool _allowClose;
+    private bool _updateCheckStarted;
 
     public MainWindow()
     {
@@ -61,7 +64,9 @@ public sealed partial class MainWindow : Window
         _initializing = false;
 
         _appWindow.Closing += OnAppWindowClosing;
+        Activated += OnWindowActivated;
         Closed += OnClosed;
+        if (!_settings.SilentStart) DispatcherQueue.TryEnqueue(StartUpdateCheck);
         if (_settings.Enabled) DispatcherQueue.TryEnqueue(StartEffects);
     }
 
@@ -237,9 +242,53 @@ public sealed partial class MainWindow : Window
 
     private void OnOpenProjectClick(object sender, RoutedEventArgs e)
     {
+        OpenExternalUrl(ProjectUrl);
+    }
+
+    private void OnOpenBilibiliClick(object sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl(BilibiliUrl);
+    }
+
+    private void OnUpdateClick(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_updateUrl)) OpenExternalUrl(_updateUrl);
+    }
+
+    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState == WindowActivationState.Deactivated) return;
+        StartUpdateCheck();
+    }
+
+    private void StartUpdateCheck()
+    {
+        if (_updateCheckStarted) return;
+        _updateCheckStarted = true;
+        ErrorLog.WriteInfo("Update", "Starting GitHub release check.");
+        _ = CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        var update = await new UpdateService().CheckAsync(Version.Parse(AppVersion));
+        if (update is null)
+        {
+            ErrorLog.WriteInfo("Update", "No newer stable release found.");
+            return;
+        }
+
+        _updateUrl = update.ReleasePageUrl;
+        UpdateButton.Content = $"更新 {update.TagName}";
+        UpdateButton.Visibility = Visibility.Visible;
+        SetStatus($"发现新版本 {update.TagName}", InfoBarSeverity.Informational);
+    }
+
+    private void OpenExternalUrl(string url)
+    {
         try
         {
-            Process.Start(new ProcessStartInfo(ProjectUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception exception)
         {
@@ -335,6 +384,7 @@ public sealed partial class MainWindow : Window
     {
         _appWindow.Show();
         Activate();
+        StartUpdateCheck();
     }
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -358,6 +408,7 @@ public sealed partial class MainWindow : Window
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, SubclassId);
         NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_DELETE, ref _trayData);
         _controller.StateChanged -= OnControllerStateChanged;
+        Activated -= OnWindowActivated;
         _controller.Dispose();
         ((App)Application.Current).Shutdown();
     }

@@ -108,7 +108,7 @@
                             </Grid>
 
                             <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,24" />
-                            <TextBlock Text="拖尾与移动碎片" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
+                            <TextBlock Text="移动碎片" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
 
                             <Grid Margin="0,0,0,18">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -127,6 +127,17 @@
                             <Grid Margin="0,0,0,18">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="碎片密度" />
+                                <TextBlock x:Name="DistanceEmissionValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                <Slider x:Name="DistanceEmissionSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.25" Maximum="3" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,24" />
+                            <TextBlock Text="拖尾" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
+
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="拖尾宽度" />
                                 <TextBlock x:Name="TrailWidthValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <Slider x:Name="TrailWidthSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.5" Maximum="4" StepFrequency="0.1" ValueChanged="OnSliderValueChanged" />
@@ -137,13 +148,6 @@
                                 <TextBlock Text="拖尾持续时间" />
                                 <TextBlock x:Name="TrailDurationValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 <Slider x:Name="TrailDurationSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="100" Maximum="800" StepFrequency="10" ValueChanged="OnSliderValueChanged" />
-                            </Grid>
-                            <Grid Margin="0,0,0,18">
-                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="碎片密度" />
-                                <TextBlock x:Name="DistanceEmissionValue" Grid.Column="1" HorizontalAlignment="Right" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <Slider x:Name="DistanceEmissionSlider" Grid.Row="1" Grid.ColumnSpan="2" Minimum="0.25" Maximum="3" StepFrequency="0.05" ValueChanged="OnSliderValueChanged" />
                             </Grid>
                         </StackPanel>
 
@@ -180,7 +184,6 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="7" VerticalAlignment="Center">
                                     <TextBlock Text="PCIcon_MousePoint.png" FontWeight="SemiBold" />
-                                    <TextBlock Text="随软件发布，不依赖游戏目录" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <Button Content="恢复系统光标" Click="OnRestoreCursorClick" HorizontalAlignment="Left" />
                                 </StackPanel>
                             </Grid>
@@ -194,7 +197,7 @@
                                     <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.0.1" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.1.0" FontWeight="SemiBold" />
                                     <TextBlock Text="Windows 桌面指针与特效工具" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="WinUI 3 · Direct3D 11 · DirectComposition" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
@@ -205,7 +208,10 @@
                             <TextBlock Text="本项目为非官方社区工具，与 Blue Archive、Nexon、NAT Games 及其关联方无关。游戏素材版权归原权利人所有，资源仅随本项目用于本地效果还原。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
                             <TextBlock Text="English" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,12" />
                             <TextBlock Text="BA Pointer is a Windows desktop pointer and click-effects utility rendered with WinUI 3, Direct3D 11, and DirectComposition. This is an unofficial community project and is not affiliated with Blue Archive, Nexon, NAT Games, or their affiliates. Game assets remain the property of their respective rights holders." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
-                            <Button Content="打开 GitHub 项目主页" Click="OnOpenProjectClick" HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="打开 GitHub 项目主页" Click="OnOpenProjectClick" />
+                                <Button Content="打开 B 站主页" Click="OnOpenBilibiliClick" />
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
@@ -214,6 +220,7 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <InfoBar x:Name="StatusBar" IsOpen="True" IsClosable="False" Severity="Informational" Title="效果已停止" HorizontalAlignment="Stretch" Margin="0,0,16,0" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button x:Name="UpdateButton" Content="查看更新" Click="OnUpdateClick" Visibility="Collapsed" />
                         <Button Content="重置参数" Click="OnResetClick" />
                         <Button Content="应用并保存" Style="{StaticResource AccentButtonStyle}" Click="OnApplyClick" />
                     </StackPanel>
