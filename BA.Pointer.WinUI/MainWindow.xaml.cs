@@ -16,7 +16,7 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.1.0";
+    private const string AppVersion = "1.1.1";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
     private const string BilibiliUrl = "https://space.bilibili.com/441133155";
     private const int HotKeyId = 0xBA01;
@@ -100,6 +100,7 @@ public sealed partial class MainWindow : Window
         FragmentTransitionSlider.Value = _settings.FragmentTransitionScale;
         TrailWidthSlider.Value = _settings.TrailWidthScale;
         TrailDurationSlider.Value = _settings.TrailDurationMs;
+        PersistentTrailToggle.IsOn = _settings.PersistentTrail;
         DistanceEmissionSlider.Value = _settings.DistanceEmissionScale;
         BloomRadiusSlider.Value = _settings.BloomRadius;
         BloomStrengthSlider.Value = _settings.BloomStrength;
@@ -121,6 +122,7 @@ public sealed partial class MainWindow : Window
         _settings.FragmentTransitionScale = FragmentTransitionSlider.Value;
         _settings.TrailWidthScale = TrailWidthSlider.Value;
         _settings.TrailDurationMs = TrailDurationSlider.Value;
+        _settings.PersistentTrail = PersistentTrailToggle.IsOn;
         _settings.DistanceEmissionScale = DistanceEmissionSlider.Value;
         _settings.BloomRadius = BloomRadiusSlider.Value;
         _settings.BloomStrength = BloomStrengthSlider.Value;

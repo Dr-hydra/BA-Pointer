@@ -73,6 +73,44 @@ float4 ScenePS(SceneVertexOutput input) : SV_TARGET
     return float4(color, alpha);
 }
 
+struct TrailVertexInput
+{
+    float2 Position : POSITION;
+    float2 TexCoord : TEXCOORD0;
+    float Age : TEXCOORD1;
+};
+
+struct TrailVertexOutput
+{
+    float4 Position : SV_POSITION;
+    float2 TexCoord : TEXCOORD0;
+    float Age : TEXCOORD1;
+};
+
+TrailVertexOutput TrailVS(TrailVertexInput input)
+{
+    TrailVertexOutput output;
+    output.Position = float4(
+        input.Position.x / ViewportSize.x * 2.0 - 1.0,
+        1.0 - input.Position.y / ViewportSize.y * 2.0,
+        0.0,
+        1.0);
+    output.TexCoord = input.TexCoord;
+    output.Age = input.Age;
+    return output;
+}
+
+float4 TrailPS(TrailVertexOutput input) : SV_TARGET
+{
+    float4 sampleColor = SourceTexture.Sample(LinearWrapSampler, input.TexCoord);
+    float lifetimeFade = saturate(1.0 - input.Age);
+    lifetimeFade = lifetimeFade * lifetimeFade * (3.0 - 2.0 * lifetimeFade);
+    float alpha = sampleColor.a * DrawColor.a * lifetimeFade;
+    clip(alpha - 0.0001);
+    float3 color = sampleColor.rgb * DrawColor.rgb * Emission;
+    return float4(color, alpha);
+}
+
 struct FullscreenVertexOutput
 {
     float4 Position : SV_POSITION;

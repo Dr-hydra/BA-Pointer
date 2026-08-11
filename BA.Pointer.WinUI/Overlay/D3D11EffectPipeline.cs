@@ -29,6 +29,7 @@ internal sealed class D3D11EffectPipeline : IDisposable
     private const int DxgiStatusOccluded = 0x087A0001;
 
     private const int MaximumBloomLevels = 6;
+    private const int MaximumTrailPoints = 320;
     private const uint ShaderCompileFlags = (1u << 11) | (1u << 15);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -41,6 +42,21 @@ internal sealed class D3D11EffectPipeline : IDisposable
         {
             Position = position;
             TexCoord = texCoord;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TrailVertex
+    {
+        public Vector2 Position;
+        public Vector2 TexCoord;
+        public float Age;
+
+        public TrailVertex(Vector2 position, Vector2 texCoord, float age)
+        {
+            Position = position;
+            TexCoord = texCoord;
+            Age = age;
         }
     }
 
@@ -120,18 +136,23 @@ internal sealed class D3D11EffectPipeline : IDisposable
 
     private ID3D11VertexShader _sceneVertexShader = null!;
     private ID3D11PixelShader _scenePixelShader = null!;
+    private ID3D11VertexShader _trailVertexShader = null!;
+    private ID3D11PixelShader _trailPixelShader = null!;
     private ID3D11VertexShader _fullscreenVertexShader = null!;
     private ID3D11PixelShader _bloomPrefilterShader = null!;
     private ID3D11PixelShader _bloomDownsampleShader = null!;
     private ID3D11PixelShader _bloomUpsampleShader = null!;
     private ID3D11PixelShader _compositeShader = null!;
     private ID3D11InputLayout _sceneInputLayout = null!;
+    private ID3D11InputLayout _trailInputLayout = null!;
     private ID3D11Buffer _sceneConstants = null!;
     private ID3D11Buffer _postConstants = null!;
     private ID3D11Buffer _quadVertexBuffer = null!;
     private ID3D11Buffer _quadIndexBuffer = null!;
     private ID3D11Buffer _ringVertexBuffer = null!;
     private ID3D11Buffer _ringIndexBuffer = null!;
+    private ID3D11Buffer _trailVertexBuffer = null!;
+    private ID3D11Buffer _trailIndexBuffer = null!;
     private uint _ringIndexCount;
     private ID3D11SamplerState _sceneSampler = null!;
     private ID3D11SamplerState _postSampler = null!;
@@ -144,6 +165,8 @@ internal sealed class D3D11EffectPipeline : IDisposable
     private TextureResource _trailTexture = null!;
     private TextureResource _ringTexture = null!;
     private TextureResource _blackTexture = null!;
+    private readonly Vector2[] _trailPositions = new Vector2[MaximumTrailPoints];
+    private readonly TrailVertex[] _trailVertices = new TrailVertex[MaximumTrailPoints * 2];
 
     private ID3D11RenderTargetView? _swapChainTarget;
     private RenderTexture? _scene;
@@ -270,6 +293,108 @@ internal sealed class D3D11EffectPipeline : IDisposable
         };
         _context.OMSetBlendState(additive ? _additiveBlend : _alphaBlend);
         DrawGeometry(_quadVertexBuffer, _quadIndexBuffer, 6, resource.View, ref constants);
+    }
+
+    public unsafe void DrawTrail(ReadOnlySpan<Vector2> path, ReadOnlySpan<float> ages, float width,
+        Color4 color, float opacity, float emission)
+    {
+        if (path.Length < 2 || path.Length != ages.Length || width <= 0 || opacity <= 0) return;
+        if (path.Length > MaximumTrailPoints)
+        {
+            path = path[^MaximumTrailPoints..];
+            ages = ages[^MaximumTrailPoints..];
+        }
+
+        var pointCount = 0;
+        Span<float> filteredAges = stackalloc float[MaximumTrailPoints];
+        for (var i = 0; i < path.Length; i++)
+        {
+            var position = path[i];
+            if (pointCount > 0 && Vector2.DistanceSquared(_trailPositions[pointCount - 1], position) < 0.0625f)
+                continue;
+            _trailPositions[pointCount] = position;
+            filteredAges[pointCount] = Math.Clamp(ages[i], 0, 1);
+            pointCount++;
+        }
+        if (pointCount < 2) return;
+
+        var halfWidth = width * 0.5f;
+        var halfTexelV = 0.5f / _trailTexture.Height;
+        var profileU = Math.Clamp(128.5f / _trailTexture.Width, 0, 1);
+        for (var i = 0; i < pointCount; i++)
+        {
+            var offset = CalculateTrailOffset(i, pointCount, halfWidth);
+            _trailVertices[i * 2] = new TrailVertex(
+                _trailPositions[i] + offset, new Vector2(profileU, halfTexelV), filteredAges[i]);
+            _trailVertices[i * 2 + 1] = new TrailVertex(
+                _trailPositions[i] - offset, new Vector2(profileU, 1 - halfTexelV), filteredAges[i]);
+        }
+
+        var vertexCount = pointCount * 2;
+        var mapped = _context.Map(_trailVertexBuffer, 0, MapMode.WriteDiscard, D3DMapFlags.None);
+        try
+        {
+            fixed (TrailVertex* source = _trailVertices)
+            {
+                var bytes = vertexCount * Marshal.SizeOf<TrailVertex>();
+                Buffer.MemoryCopy(source, (void*)mapped.DataPointer, bytes, bytes);
+            }
+        }
+        finally
+        {
+            _context.Unmap(_trailVertexBuffer, 0);
+        }
+
+        var constants = new SceneConstants
+        {
+            ViewportSize = new Vector2(_width, _height),
+            DrawPosition = Vector2.Zero,
+            DrawScale = Vector2.One,
+            DrawRotation = 0,
+            DissolveThreshold = 0.0001f,
+            UvRectangle = new Vector4(0, 0, 1, 1),
+            DrawColor = new Vector4(color.R, color.G, color.B, Math.Clamp(opacity, 0, 1)),
+            Emission = Math.Max(0, emission)
+        };
+        UpdateConstantBuffer(_sceneConstants, ref constants);
+        try
+        {
+            _context.OMSetBlendState(_additiveBlend);
+            _context.IASetInputLayout(_trailInputLayout);
+            _context.IASetVertexBuffer(0, _trailVertexBuffer, (uint)Marshal.SizeOf<TrailVertex>(), 0);
+            _context.IASetIndexBuffer(_trailIndexBuffer, Format.R16_UInt, 0);
+            _context.VSSetShader(_trailVertexShader);
+            _context.PSSetShader(_trailPixelShader);
+            _context.PSSetShaderResource(0, _trailTexture.View);
+            _context.DrawIndexed((uint)((pointCount - 1) * 6), 0, 0);
+        }
+        finally
+        {
+            _context.IASetInputLayout(_sceneInputLayout);
+            _context.VSSetShader(_sceneVertexShader);
+            _context.PSSetShader(_scenePixelShader);
+        }
+    }
+
+    private Vector2 CalculateTrailOffset(int index, int pointCount, float halfWidth)
+    {
+        var previousDirection = index > 0
+            ? Vector2.Normalize(_trailPositions[index] - _trailPositions[index - 1])
+            : Vector2.Normalize(_trailPositions[1] - _trailPositions[0]);
+        var nextDirection = index < pointCount - 1
+            ? Vector2.Normalize(_trailPositions[index + 1] - _trailPositions[index])
+            : previousDirection;
+        var previousNormal = new Vector2(-previousDirection.Y, previousDirection.X);
+        var nextNormal = new Vector2(-nextDirection.Y, nextDirection.X);
+
+        if (index == 0) return nextNormal * halfWidth;
+        if (index == pointCount - 1) return previousNormal * halfWidth;
+
+        var miter = previousNormal + nextNormal;
+        if (miter.LengthSquared() < 0.0001f) return nextNormal * halfWidth;
+        miter = Vector2.Normalize(miter);
+        var denominator = Math.Max(0.35f, Math.Abs(Vector2.Dot(miter, nextNormal)));
+        return miter * Math.Min(halfWidth / denominator, halfWidth * 2);
     }
 
     public void DrawRing(Vector2 center, float scale, float rotation, Color4 color, float opacity,
@@ -404,6 +529,8 @@ internal sealed class D3D11EffectPipeline : IDisposable
         var source = Encoding.UTF8.GetBytes(File.ReadAllText(_shaderPath));
         var sceneVertexCode = CompileShader(source, _shaderPath, "SceneVS", "vs_5_0");
         var scenePixelCode = CompileShader(source, _shaderPath, "ScenePS", "ps_5_0");
+        var trailVertexCode = CompileShader(source, _shaderPath, "TrailVS", "vs_5_0");
+        var trailPixelCode = CompileShader(source, _shaderPath, "TrailPS", "ps_5_0");
         var fullscreenVertexCode = CompileShader(source, _shaderPath, "FullscreenVS", "vs_5_0");
         var prefilterCode = CompileShader(source, _shaderPath, "BloomPrefilterPS", "ps_5_0");
         var downsampleCode = CompileShader(source, _shaderPath, "BloomDownsamplePS", "ps_5_0");
@@ -412,6 +539,8 @@ internal sealed class D3D11EffectPipeline : IDisposable
 
         _sceneVertexShader = _device.CreateVertexShader(sceneVertexCode, null);
         _scenePixelShader = _device.CreatePixelShader(scenePixelCode, null);
+        _trailVertexShader = _device.CreateVertexShader(trailVertexCode, null);
+        _trailPixelShader = _device.CreatePixelShader(trailPixelCode, null);
         _fullscreenVertexShader = _device.CreateVertexShader(fullscreenVertexCode, null);
         _bloomPrefilterShader = _device.CreatePixelShader(prefilterCode, null);
         _bloomDownsampleShader = _device.CreatePixelShader(downsampleCode, null);
@@ -422,6 +551,12 @@ internal sealed class D3D11EffectPipeline : IDisposable
             new InputElementDescription("POSITION", 0, Format.R32G32_Float, 0, 0),
             new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 8, 0)
         ], sceneVertexCode);
+        _trailInputLayout = _device.CreateInputLayout(
+        [
+            new InputElementDescription("POSITION", 0, Format.R32G32_Float, 0, 0),
+            new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 8, 0),
+            new InputElementDescription("TEXCOORD", 1, Format.R32_Float, 16, 0)
+        ], trailVertexCode);
 
         _sceneConstants = _device.CreateBuffer((uint)Marshal.SizeOf<SceneConstants>(), BindFlags.ConstantBuffer,
             ResourceUsage.Dynamic, CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
@@ -437,6 +572,22 @@ internal sealed class D3D11EffectPipeline : IDisposable
         };
         _quadVertexBuffer = _device.CreateBuffer(quadVertices, BindFlags.VertexBuffer, ResourceUsage.Immutable);
         _quadIndexBuffer = _device.CreateBuffer(new ushort[] { 0, 1, 2, 0, 2, 3 }, BindFlags.IndexBuffer, ResourceUsage.Immutable);
+        _trailVertexBuffer = _device.CreateBuffer(
+            (uint)(MaximumTrailPoints * 2 * Marshal.SizeOf<TrailVertex>()), BindFlags.VertexBuffer,
+            ResourceUsage.Dynamic, CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
+        var trailIndices = new ushort[(MaximumTrailPoints - 1) * 6];
+        for (var i = 0; i < MaximumTrailPoints - 1; i++)
+        {
+            var vertex = (ushort)(i * 2);
+            var index = i * 6;
+            trailIndices[index] = vertex;
+            trailIndices[index + 1] = (ushort)(vertex + 1);
+            trailIndices[index + 2] = (ushort)(vertex + 2);
+            trailIndices[index + 3] = (ushort)(vertex + 1);
+            trailIndices[index + 4] = (ushort)(vertex + 3);
+            trailIndices[index + 5] = (ushort)(vertex + 2);
+        }
+        _trailIndexBuffer = _device.CreateBuffer(trailIndices, BindFlags.IndexBuffer, ResourceUsage.Immutable);
         LoadRingMesh(Path.Combine(_assetDirectory, "Cylinder002.obj"));
 
         _sceneSampler = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear,
@@ -738,16 +889,21 @@ internal sealed class D3D11EffectPipeline : IDisposable
         _sceneSampler.Dispose();
         _ringIndexBuffer.Dispose();
         _ringVertexBuffer.Dispose();
+        _trailIndexBuffer.Dispose();
+        _trailVertexBuffer.Dispose();
         _quadIndexBuffer.Dispose();
         _quadVertexBuffer.Dispose();
         _postConstants.Dispose();
         _sceneConstants.Dispose();
+        _trailInputLayout.Dispose();
         _sceneInputLayout.Dispose();
         _compositeShader.Dispose();
         _bloomUpsampleShader.Dispose();
         _bloomDownsampleShader.Dispose();
         _bloomPrefilterShader.Dispose();
         _fullscreenVertexShader.Dispose();
+        _trailPixelShader.Dispose();
+        _trailVertexShader.Dispose();
         _scenePixelShader.Dispose();
         _sceneVertexShader.Dispose();
         _compositionVisual.Dispose();

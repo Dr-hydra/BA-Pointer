@@ -135,6 +135,8 @@
                             <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,24" />
                             <TextBlock Text="拖尾" Style="{StaticResource SubtitleTextBlockStyle}" Margin="0,0,0,18" />
 
+                            <ToggleSwitch x:Name="PersistentTrailToggle" Header="拖尾常驻" Margin="0,0,0,18" />
+
                             <Grid Margin="0,0,0,18">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions>
@@ -197,7 +199,7 @@
                                     <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.1.0" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.1.1" FontWeight="SemiBold" />
                                     <TextBlock Text="Windows 桌面指针与特效工具" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="WinUI 3 · Direct3D 11 · DirectComposition" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>

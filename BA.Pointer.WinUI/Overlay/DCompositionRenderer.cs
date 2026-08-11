@@ -16,12 +16,14 @@ public sealed class DCompositionRenderer : IDisposable
     private const double ReferencePixelsPerUnityUnit = 720;
     private const double GraphicsMaintenanceIntervalMs = 30_000;
     private const double GraphicsRecoveryCooldownMs = 5_000;
+    private const int MaximumTrailPoints = 320;
 
     private sealed record TrailPoint(Vector2 Position, double Time);
 
     private sealed class Touch
     {
         public required PointerMouseButton Button;
+        public bool IsPersistent;
         public Vector2 Position;
         public Vector2 LastPosition;
         public double StartedAt;
@@ -65,6 +67,7 @@ public sealed class DCompositionRenderer : IDisposable
     private readonly List<Touch> _touches = new();
     private readonly List<ClickEffect> _clickEffects = new();
     private readonly List<TriangleParticle> _moveParticles = new();
+    private Touch? _persistentTrail;
     private PointerSettings _settings = new();
     private D3D11EffectPipeline? _pipeline;
     private bool _running;
@@ -101,6 +104,7 @@ public sealed class DCompositionRenderer : IDisposable
     {
         var graphicsState = _pipeline?.GetDiagnosticState() ?? "pipeline=unavailable";
         return $"rendererRunning={_running}, initialized={_initialized}, targetActive={_targetActive}, " +
+               $"persistentEnabled={_settings.PersistentTrail}, persistentActive={_persistentTrail is not null}, " +
                $"activeTouches={_activeTouches.Count}, touches={_touches.Count}, " +
                $"clickEffects={_clickEffects.Count}, moveParticles={_moveParticles.Count}, " +
                $"bounds={_originX},{_originY},{_width}x{_height}, dpi={_dpi}, recoveries={_graphicsRecoveryCount}, " +
@@ -130,6 +134,7 @@ public sealed class DCompositionRenderer : IDisposable
         _touches.Clear();
         _clickEffects.Clear();
         _moveParticles.Clear();
+        _persistentTrail = null;
         if (_initialized)
         {
             _lastFrameHadContent = true;
@@ -143,6 +148,13 @@ public sealed class DCompositionRenderer : IDisposable
         if (!_running) return;
         var position = new Vector2(screenX - _originX, screenY - _originY);
         var now = _clock.Elapsed.TotalMilliseconds;
+        if (_settings.PersistentTrail)
+        {
+            if (isDown)
+                SpawnClickEffect(position, now,
+                    new Random(CreateClickSeed(eventSequence, screenX, screenY, button)));
+            return;
+        }
         if (isDown)
         {
             if (_activeTouches.TryGetValue(button, out var previous)) ReleaseTouch(previous, now, position);
@@ -180,14 +192,32 @@ public sealed class DCompositionRenderer : IDisposable
             _touches.Clear();
             _clickEffects.Clear();
             _moveParticles.Clear();
+            _persistentTrail = null;
             RenderFrameSafely(now);
             return;
         }
 
-        if (_activeTouches.Count > 0 && NativeMethods.GetCursorPos(out var cursor))
+        if ((_settings.PersistentTrail || _activeTouches.Count > 0) && NativeMethods.GetCursorPos(out var cursor))
         {
+            var position = new Vector2(cursor.X - _originX, cursor.Y - _originY);
+            if (_settings.PersistentTrail)
+            {
+                _persistentTrail ??= CreatePersistentTrail(position, now);
+                UpdateTouchPosition(_persistentTrail, position, now);
+            }
+            else if (_persistentTrail is not null)
+            {
+                ReleaseTouch(_persistentTrail, now, position);
+                _persistentTrail = null;
+            }
+
             foreach (var touch in _activeTouches.Values)
-                UpdateTouchPosition(touch, new Vector2(cursor.X - _originX, cursor.Y - _originY), now);
+                UpdateTouchPosition(touch, position, now);
+        }
+        else if (!_settings.PersistentTrail && _persistentTrail is not null)
+        {
+            ReleaseTouch(_persistentTrail, now, _persistentTrail.Position);
+            _persistentTrail = null;
         }
         PruneExpired(now);
         RenderFrameSafely(now);
@@ -314,7 +344,7 @@ public sealed class DCompositionRenderer : IDisposable
         _pipeline.Present(
             (float)Math.Clamp(_settings.BloomRadius, 0, 40),
             (float)Math.Clamp(_settings.BloomStrength, 0, 1.5),
-            _clickEffects.Count > 0);
+            _clickEffects.Count > 0 || _touches.Any(touch => ShouldDrawTrail(touch) && touch.Trail.Count > 1));
         _lastFrameHadContent = hasContent;
     }
 
@@ -325,22 +355,23 @@ public sealed class DCompositionRenderer : IDisposable
         var lifetime = Math.Clamp(_settings.TrailDurationMs, 20, 2000);
         var coreWidth = Math.Max(0.5,
             0.005 * GetPixelsPerUnityUnit() * scale * Math.Clamp(_settings.TrailWidthScale, 0.1, 10));
+        Span<Vector2> path = stackalloc Vector2[MaximumTrailPoints];
+        Span<float> ages = stackalloc float[MaximumTrailPoints];
         foreach (var touch in _touches)
-        for (var i = 1; i < touch.Trail.Count; i++)
         {
-            var first = touch.Trail[i - 1];
-            var second = touch.Trail[i];
-            var ageOpacity = 1 - Math.Clamp((now - second.Time) / lifetime, 0, 1);
-            var delta = first.Position - second.Position;
-            var length = delta.Length();
-            if (ageOpacity <= 0 || length < 0.25) continue;
+            if (!ShouldDrawTrail(touch)) continue;
+            var count = Math.Min(touch.Trail.Count, MaximumTrailPoints);
+            if (count < 2) continue;
+            var start = touch.Trail.Count - count;
+            for (var i = 0; i < count; i++)
+            {
+                var point = touch.Trail[start + i];
+                path[i] = point.Position;
+                ages[i] = (float)Math.Clamp((now - point.Time) / lifetime, 0, 1);
+            }
 
-            var center = (first.Position + second.Position) * 0.5f;
-            var angle = MathF.Atan2(delta.Y, delta.X);
-            var trailProgress = 1 - i / (double)Math.Max(1, touch.Trail.Count - 1);
-            _pipeline!.DrawSprite(EffectTexture.Trail, center, length + (float)coreWidth, (float)coreWidth,
-                angle, TrailColor(trailProgress), (float)(opacity * ageOpacity), additive: true,
-                emission: 23.9686279f);
+            _pipeline!.DrawTrail(path[..count], ages[..count], (float)coreWidth,
+                TrailColor(0), (float)opacity, 23.9686279f);
         }
     }
 
@@ -439,6 +470,21 @@ public sealed class DCompositionRenderer : IDisposable
         };
     }
 
+    private Touch CreatePersistentTrail(Vector2 position, double now)
+    {
+        _touches.RemoveAll(touch => touch.IsPersistent);
+        var touch = new Touch
+        {
+            Button = PointerMouseButton.Left,
+            IsPersistent = true,
+            Position = position,
+            LastPosition = position,
+            StartedAt = now
+        };
+        _touches.Add(touch);
+        return touch;
+    }
+
     private void UpdateTouchPosition(Touch touch, Vector2 position, double now)
     {
         touch.Position = position;
@@ -467,6 +513,8 @@ public sealed class DCompositionRenderer : IDisposable
         touch.ReleasedAt = now;
     }
 
+    private bool ShouldDrawTrail(Touch touch) => !_settings.PersistentTrail || touch.IsPersistent;
+
     private void PruneExpired(double now)
     {
         var cutoff = now - Math.Clamp(_settings.TrailDurationMs, 20, 2000);
@@ -474,7 +522,8 @@ public sealed class DCompositionRenderer : IDisposable
         {
             var touch = _touches[i];
             while (touch.Trail.Count > 0 && touch.Trail[0].Time < cutoff) touch.Trail.RemoveAt(0);
-            if (touch.Trail.Count > 320) touch.Trail.RemoveRange(0, touch.Trail.Count - 320);
+            if (touch.Trail.Count > MaximumTrailPoints)
+                touch.Trail.RemoveRange(0, touch.Trail.Count - MaximumTrailPoints);
             if (touch.ReleasedAt is not null && touch.Trail.Count == 0) _touches.RemoveAt(i);
         }
 
@@ -536,7 +585,8 @@ public sealed class DCompositionRenderer : IDisposable
     {
         var margin = (float)(0.5 * GetPixelsPerUnityUnit() * Math.Clamp(_settings.EffectScale, 0.1, 5));
         if (_clickEffects.Any(effect => IsNearViewport(effect.Position, margin))) return true;
-        if (_touches.Any(touch => touch.Trail.Any(point => IsNearViewport(point.Position, margin)))) return true;
+        if (_touches.Any(touch => ShouldDrawTrail(touch) &&
+                                  touch.Trail.Any(point => IsNearViewport(point.Position, margin)))) return true;
 
         var durationScale = Math.Clamp(_settings.EffectDurationScale, 0.1, 5);
         foreach (var particle in _moveParticles)

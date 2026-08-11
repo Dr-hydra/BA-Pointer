@@ -22,6 +22,7 @@ public sealed class PointerSettings
     public double FragmentTransitionScale { get; set; } = 1.0;
     public double TrailWidthScale { get; set; } = 1.0;
     public double TrailDurationMs { get; set; } = 300.0;
+    public bool PersistentTrail { get; set; }
     public double DistanceEmissionScale { get; set; } = 1.0;
     public double BloomRadius { get; set; } = 7.5;
     public double BloomStrength { get; set; } = 0.72;
