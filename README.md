@@ -4,9 +4,9 @@
 
 ## 下载
 
-从 [v1.1.1 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.1) 下载：
+从 [v1.1.2 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.2) 下载：
 
-- `BA.Pointer.WinUI-1.1.1-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
+- `BA.Pointer.WinUI-1.1.2-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
 
 这是一个 Windows x64 单文件程序，首次运行时会将内置的原生运行库和资源解压到用户临时目录。
 
@@ -18,10 +18,18 @@
 - 可选拖尾常驻，无需按住鼠标也可显示连续拖尾
 - 支持不同分辨率、混合 DPI、负坐标排列和显示器热插拔的多屏桌面
 - 支持“全部桌面”与“前台应用全屏时暂停”两种生效范围
+- 可选使用 Windows 显示亲和性 API，在系统截图和录屏中隐藏特效覆盖层
 - 支持托盘控制、全局 `Ctrl+Alt+P` 开关、设置持久化、静默启动和管理员启动
 - 打开主界面时自动检查 GitHub 稳定版更新
 - 自动检测并恢复 Direct3D/DirectComposition 显示链路，开关特效时完整重建覆盖层
 - 停止效果或退出程序时恢复原系统指针
+
+## v1.1.2
+
+- 增加“防止特效被截图或录屏”开关
+- 使用 `WDA_EXCLUDEFROMCAPTURE` 排除特效覆盖层，并同步应用到全部显示器窗口
+- 显示器热插拔或覆盖层重建后自动继承该设置
+- 本版本仅发布完整自包含包
 
 ## v1.1.1
 
@@ -73,9 +81,9 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download the following file from the [v1.1.1 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.1):
+Download the following file from the [v1.1.2 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.2):
 
-- `BA.Pointer.WinUI-1.1.1-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
+- `BA.Pointer.WinUI-1.1.2-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
 
 ### Features
 
@@ -85,9 +93,17 @@ Download the following file from the [v1.1.1 release](https://github.com/Dr-hydr
 - Optional persistent trail while moving the pointer without holding a mouse button
 - Multi-monitor support for mixed resolutions, DPI scaling, negative coordinates, and display hot-plugging
 - Desktop-wide effects or automatic pause while a foreground application is fullscreen
+- Optional Windows display-affinity protection that excludes the effects overlay from screenshots and recordings
 - Tray controls, global `Ctrl+Alt+P` toggle, silent startup, and optional administrator startup
 - Automatic stable-release checks when the main window is opened
 - Automatic Direct3D/DirectComposition health checks and overlay recovery
+
+### v1.1.2
+
+- Adds an option to exclude the effects overlay from screenshots and compatible screen recorders
+- Applies `WDA_EXCLUDEFROMCAPTURE` to every display overlay
+- Preserves capture exclusion after display hot-plugging or overlay recovery
+- Ships only the fully self-contained package
 
 ### v1.1.1
 

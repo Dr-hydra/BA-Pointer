@@ -14,6 +14,7 @@ public sealed class PointerSettings
     public bool Enabled { get; set; }
     public bool UseSystemCursor { get; set; } = true;
     public TargetScope Target { get; set; } = TargetScope.AllDesktop;
+    public bool ExcludeEffectsFromCapture { get; set; }
     public int FrameRate { get; set; } = 120;
     public double EffectScale { get; set; } = 0.5;
     public double EffectOpacity { get; set; } = 1.0;

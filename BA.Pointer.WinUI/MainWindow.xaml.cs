@@ -16,7 +16,7 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.1.1";
+    private const string AppVersion = "1.1.2";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
     private const string BilibiliUrl = "https://space.bilibili.com/441133155";
     private const int HotKeyId = 0xBA01;
@@ -106,6 +106,7 @@ public sealed partial class MainWindow : Window
         BloomStrengthSlider.Value = _settings.BloomStrength;
         TargetCombo.SelectedIndex = _settings.Target == TargetScope.AllDesktop ? 0 : 1;
         FpsCombo.SelectedIndex = _settings.FrameRate switch { 60 => 0, 144 => 2, _ => 1 };
+        CaptureExclusionToggle.IsOn = _settings.ExcludeEffectsFromCapture;
         SystemCursorToggle.IsOn = _settings.UseSystemCursor;
         StartupToggle.IsOn = _settings.StartWithWindows;
         SilentStartToggle.IsOn = _settings.SilentStart;
@@ -128,6 +129,7 @@ public sealed partial class MainWindow : Window
         _settings.BloomStrength = BloomStrengthSlider.Value;
         _settings.Target = TargetCombo.SelectedIndex == 1 ? TargetScope.PauseWhenFullscreen : TargetScope.AllDesktop;
         _settings.FrameRate = FpsCombo.SelectedIndex switch { 0 => 60, 2 => 144, _ => 120 };
+        _settings.ExcludeEffectsFromCapture = CaptureExclusionToggle.IsOn;
         _settings.UseSystemCursor = SystemCursorToggle.IsOn;
         _settings.StartWithWindows = StartupToggle.IsOn;
         _settings.SilentStart = SilentStartToggle.IsOn;

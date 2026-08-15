@@ -172,6 +172,7 @@
                                     <ComboBoxItem Content="144 Hz" Tag="144" />
                                 </ComboBox>
                             </Grid>
+                            <ToggleSwitch x:Name="CaptureExclusionToggle" Header="防止特效被截图或录屏" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="SystemCursorToggle" Header="使用游戏素材替换系统默认箭头" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="StartupToggle" Header="登录 Windows 后自动启动" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="SilentStartToggle" Header="启动时隐藏到托盘" Margin="0,0,0,12" />
@@ -199,7 +200,7 @@
                                     <Image Source="ms-appx:///Assets/PCIcon_MousePoint.png" Width="56" Height="56" Stretch="Uniform" />
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.1.1" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="AboutVersionText" Text="版本 1.1.2" FontWeight="SemiBold" />
                                     <TextBlock Text="Windows 桌面指针与特效工具" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="WinUI 3 · Direct3D 11 · DirectComposition" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>

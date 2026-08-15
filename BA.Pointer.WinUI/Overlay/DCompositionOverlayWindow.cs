@@ -89,7 +89,11 @@ public sealed class DCompositionOverlayWindow : IDisposable
     public void Configure(PointerSettings settings)
     {
         _settings = settings;
-        foreach (var surface in _surfaces) surface.Renderer.Configure(settings);
+        foreach (var surface in _surfaces)
+        {
+            ApplyCaptureExclusion(surface.Hwnd, settings.ExcludeEffectsFromCapture);
+            surface.Renderer.Configure(settings);
+        }
         UpdateTimerInterval();
     }
 
@@ -193,6 +197,7 @@ public sealed class DCompositionOverlayWindow : IDisposable
         {
             if (!NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "无法设置覆盖窗口的点击穿透属性。");
+            ApplyCaptureExclusion(hwnd, _settings.ExcludeEffectsFromCapture);
 
             var dpi = NativeMethods.GetDpiForWindow(hwnd);
             if (dpi == 0) dpi = 96;
@@ -273,6 +278,17 @@ public sealed class DCompositionOverlayWindow : IDisposable
 
     private static string DescribeSurface(MonitorSurface surface) =>
         $"{surface.Monitor},dpi={surface.Dpi},hwnd=0x{surface.Hwnd.ToInt64():X}";
+
+    private static void ApplyCaptureExclusion(IntPtr hwnd, bool exclude)
+    {
+        var affinity = exclude ? NativeMethods.WDA_EXCLUDEFROMCAPTURE : NativeMethods.WDA_NONE;
+        if (NativeMethods.SetWindowDisplayAffinity(hwnd, affinity)) return;
+
+        var error = Marshal.GetLastWin32Error();
+        ErrorLog.WriteWarning("Overlay",
+            $"Unable to {(exclude ? "enable" : "disable")} capture exclusion. " +
+            $"hwnd=0x{hwnd.ToInt64():X}, error={error}");
+    }
 
     private static string GetTopologyKey(IEnumerable<MonitorDescriptor> monitors) =>
         string.Join("|", monitors.Select(monitor => monitor.Key));
