@@ -16,7 +16,7 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.1.2";
+    private const string AppVersion = "1.1.3";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
     private const string BilibiliUrl = "https://space.bilibili.com/441133155";
     private const int HotKeyId = 0xBA01;

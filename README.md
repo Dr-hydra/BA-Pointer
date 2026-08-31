@@ -4,9 +4,10 @@
 
 ## 下载
 
-从 [v1.1.2 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.2) 下载：
+从 [v1.1.3 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3) 下载：
 
-- `BA.Pointer.WinUI-1.1.2-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
+- `BA.Pointer.WinUI-1.1.3-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
+- `BA.Pointer.WinUI-1.1.3-x64-Win11-22H2+.exe`：精简版，内置 .NET，但不内置 Windows App Runtime/WinUI 3，适用于 Windows 11 22H2 或更高版本。
 
 这是一个 Windows x64 单文件程序，首次运行时会将内置的原生运行库和资源解压到用户临时目录。
 
@@ -19,10 +20,17 @@
 - 支持不同分辨率、混合 DPI、负坐标排列和显示器热插拔的多屏桌面
 - 支持“全部桌面”与“前台应用全屏时暂停”两种生效范围
 - 可选使用 Windows 显示亲和性 API，在系统截图和录屏中隐藏特效覆盖层
-- 支持托盘控制、全局 `Ctrl+Alt+P` 开关、设置持久化、静默启动和管理员启动
+- 支持托盘控制、可配置全局快捷键、设置持久化、静默启动和管理员启动
 - 打开主界面时自动检查 GitHub 稳定版更新
 - 自动检测并恢复 Direct3D/DirectComposition 显示链路，开关特效时完整重建覆盖层
 - 停止效果或退出程序时恢复原系统指针
+
+## v1.1.3
+
+- 修复最大化窗口时，顶层特效覆盖层阻止自动隐藏任务栏弹出的问题
+- 系统光标隐藏时默认暂停点击、碎片和拖尾，避免游戏准星处误触发特效
+- 全局快捷键支持启用开关、自定义修饰键和主键，并在冲突时回滚原设置
+- 设置格式升级到版本 4，并兼容旧版设置文件
 
 ## v1.1.2
 
@@ -81,9 +89,10 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download the following file from the [v1.1.2 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.2):
+Download the following files from the [v1.1.3 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3):
 
-- `BA.Pointer.WinUI-1.1.2-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
+- `BA.Pointer.WinUI-1.1.3-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
+- `BA.Pointer.WinUI-1.1.3-x64-Win11-22H2+.exe`: includes .NET but omits Windows App Runtime/WinUI 3; supports Windows 11 22H2 or later.
 
 ### Features
 
@@ -94,9 +103,16 @@ Download the following file from the [v1.1.2 release](https://github.com/Dr-hydr
 - Multi-monitor support for mixed resolutions, DPI scaling, negative coordinates, and display hot-plugging
 - Desktop-wide effects or automatic pause while a foreground application is fullscreen
 - Optional Windows display-affinity protection that excludes the effects overlay from screenshots and recordings
-- Tray controls, global `Ctrl+Alt+P` toggle, silent startup, and optional administrator startup
+- Tray controls, configurable global hotkey, silent startup, and optional administrator startup
 - Automatic stable-release checks when the main window is opened
 - Automatic Direct3D/DirectComposition health checks and overlay recovery
+
+### v1.1.3
+
+- Fixes auto-hidden taskbars not appearing behind the topmost effects overlay
+- Pauses clicks, particles, and trails while the system cursor is hidden
+- Adds configurable global-hotkey controls with conflict rollback
+- Migrates preferences to settings version 4 while preserving older files
 
 ### v1.1.2
 
