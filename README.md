@@ -7,7 +7,6 @@
 从 [v1.1.3 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3) 下载：
 
 - `BA.Pointer.WinUI-1.1.3-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
-- `BA.Pointer.WinUI-1.1.3-x64-Win11-22H2+.exe`：精简版，内置 .NET，但不内置 Windows App Runtime/WinUI 3，适用于 Windows 11 22H2 或更高版本。
 
 这是一个 Windows x64 单文件程序，首次运行时会将内置的原生运行库和资源解压到用户临时目录。
 
@@ -89,10 +88,9 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download the following files from the [v1.1.3 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3):
+Download the following file from the [v1.1.3 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3):
 
 - `BA.Pointer.WinUI-1.1.3-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
-- `BA.Pointer.WinUI-1.1.3-x64-Win11-22H2+.exe`: includes .NET but omits Windows App Runtime/WinUI 3; supports Windows 11 22H2 or later.
 
 ### Features
 
