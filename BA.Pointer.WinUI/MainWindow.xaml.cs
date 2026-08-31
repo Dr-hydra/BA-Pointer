@@ -39,6 +39,9 @@ public sealed partial class MainWindow : Window
     private bool _initializing = true;
     private bool _allowClose;
     private bool _updateCheckStarted;
+    private bool _hotKeyRegistered;
+    private uint _registeredHotKeyModifiers;
+    private uint _registeredHotKeyVirtualKey;
 
     public MainWindow()
     {
@@ -56,12 +59,14 @@ public sealed partial class MainWindow : Window
 
         _subclassProc = WindowSubclass;
         NativeMethods.SetWindowSubclass(_hwnd, _subclassProc, SubclassId, 0);
-        NativeMethods.RegisterHotKey(_hwnd, HotKeyId, NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT, 0x50);
         InitializeTray();
+        InitializeHotKeyChoices();
         PopulateControls();
         UpdateValueLabels();
         SetRunningUi(false);
         _initializing = false;
+        if (!ApplyHotKeySettings(_settings, out var hotKeyError))
+            SetStatus(hotKeyError!, InfoBarSeverity.Warning);
 
         _appWindow.Closing += OnAppWindowClosing;
         Activated += OnWindowActivated;
@@ -106,12 +111,145 @@ public sealed partial class MainWindow : Window
         BloomStrengthSlider.Value = _settings.BloomStrength;
         TargetCombo.SelectedIndex = _settings.Target == TargetScope.AllDesktop ? 0 : 1;
         FpsCombo.SelectedIndex = _settings.FrameRate switch { 60 => 0, 144 => 2, _ => 1 };
+        PopulateHotKeyControls();
+        PauseWhenCursorHiddenToggle.IsOn = _settings.PauseWhenCursorHidden;
         CaptureExclusionToggle.IsOn = _settings.ExcludeEffectsFromCapture;
         SystemCursorToggle.IsOn = _settings.UseSystemCursor;
         StartupToggle.IsOn = _settings.StartWithWindows;
         SilentStartToggle.IsOn = _settings.SilentStart;
         RunAsAdministratorToggle.IsOn = _settings.RunAsAdministrator;
         EnabledToggle.IsOn = _settings.Enabled;
+    }
+
+    private void InitializeHotKeyChoices()
+    {
+        for (var key = 'A'; key <= 'Z'; key++)
+            HotKeyKeyCombo.Items.Add(new ComboBoxItem { Content = key.ToString(), Tag = (uint)key });
+        for (var key = '0'; key <= '9'; key++)
+            HotKeyKeyCombo.Items.Add(new ComboBoxItem { Content = key.ToString(), Tag = (uint)key });
+        for (var index = 1; index <= 11; index++)
+            HotKeyKeyCombo.Items.Add(new ComboBoxItem { Content = $"F{index}", Tag = (uint)(0x70 + index - 1) });
+        AddHotKeyChoice("空格", 0x20);
+        AddHotKeyChoice("Page Up", 0x21);
+        AddHotKeyChoice("Page Down", 0x22);
+        AddHotKeyChoice("End", 0x23);
+        AddHotKeyChoice("Home", 0x24);
+        AddHotKeyChoice("左方向键", 0x25);
+        AddHotKeyChoice("上方向键", 0x26);
+        AddHotKeyChoice("右方向键", 0x27);
+        AddHotKeyChoice("下方向键", 0x28);
+        AddHotKeyChoice("Insert", 0x2D);
+        AddHotKeyChoice("Delete", 0x2E);
+    }
+
+    private void AddHotKeyChoice(string name, uint virtualKey) =>
+        HotKeyKeyCombo.Items.Add(new ComboBoxItem { Content = name, Tag = virtualKey });
+
+    private void PopulateHotKeyControls()
+    {
+        HotKeyToggle.IsOn = _settings.HotKeyEnabled;
+        HotKeyCtrlCheck.IsChecked = (_settings.HotKeyModifiers & NativeMethods.MOD_CONTROL) != 0;
+        HotKeyAltCheck.IsChecked = (_settings.HotKeyModifiers & NativeMethods.MOD_ALT) != 0;
+        HotKeyShiftCheck.IsChecked = (_settings.HotKeyModifiers & NativeMethods.MOD_SHIFT) != 0;
+        HotKeyWinCheck.IsChecked = (_settings.HotKeyModifiers & NativeMethods.MOD_WIN) != 0;
+        SelectHotKeyChoice(_settings.HotKeyVirtualKey);
+        SetHotKeyOptionsEnabled(_settings.HotKeyEnabled);
+    }
+
+    private void SelectHotKeyChoice(uint virtualKey)
+    {
+        foreach (var item in HotKeyKeyCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (Convert.ToUInt32(item.Tag) != virtualKey) continue;
+            HotKeyKeyCombo.SelectedItem = item;
+            return;
+        }
+        var custom = new ComboBoxItem { Content = $"VK 0x{virtualKey:X2}", Tag = virtualKey };
+        HotKeyKeyCombo.Items.Add(custom);
+        HotKeyKeyCombo.SelectedItem = custom;
+    }
+
+    private uint GetHotKeyModifiersFromControls()
+    {
+        uint modifiers = 0;
+        if (HotKeyCtrlCheck.IsChecked == true) modifiers |= NativeMethods.MOD_CONTROL;
+        if (HotKeyAltCheck.IsChecked == true) modifiers |= NativeMethods.MOD_ALT;
+        if (HotKeyShiftCheck.IsChecked == true) modifiers |= NativeMethods.MOD_SHIFT;
+        if (HotKeyWinCheck.IsChecked == true) modifiers |= NativeMethods.MOD_WIN;
+        return modifiers;
+    }
+
+    private uint GetSelectedHotKeyVirtualKey() => HotKeyKeyCombo.SelectedItem is ComboBoxItem item
+        ? Convert.ToUInt32(item.Tag)
+        : 0;
+
+    private bool ApplyHotKeySettings(PointerSettings settings, out string? error)
+    {
+        error = null;
+        if (!settings.HotKeyEnabled)
+        {
+            if (_hotKeyRegistered && !NativeMethods.UnregisterHotKey(_hwnd, HotKeyId))
+            {
+                error = $"无法关闭全局快捷键（错误 {Marshal.GetLastWin32Error()}）";
+                return false;
+            }
+            _hotKeyRegistered = false;
+            return true;
+        }
+
+        var modifiers = settings.HotKeyModifiers &
+                        (NativeMethods.MOD_CONTROL | NativeMethods.MOD_ALT |
+                         NativeMethods.MOD_SHIFT | NativeMethods.MOD_WIN);
+        if (modifiers == 0)
+        {
+            error = "全局快捷键至少需要一个修饰键";
+            return false;
+        }
+        if (settings.HotKeyVirtualKey == 0)
+        {
+            error = "请选择全局快捷键的主键";
+            return false;
+        }
+        if (_hotKeyRegistered && modifiers == _registeredHotKeyModifiers &&
+            settings.HotKeyVirtualKey == _registeredHotKeyVirtualKey)
+            return true;
+
+        var hadPrevious = _hotKeyRegistered;
+        var previousModifiers = _registeredHotKeyModifiers;
+        var previousVirtualKey = _registeredHotKeyVirtualKey;
+        if (hadPrevious && !NativeMethods.UnregisterHotKey(_hwnd, HotKeyId))
+        {
+            error = $"无法更新全局快捷键（错误 {Marshal.GetLastWin32Error()}），已保留原设置";
+            return false;
+        }
+        _hotKeyRegistered = false;
+
+        if (NativeMethods.RegisterHotKey(_hwnd, HotKeyId,
+                modifiers | NativeMethods.MOD_NOREPEAT, settings.HotKeyVirtualKey))
+        {
+            _hotKeyRegistered = true;
+            _registeredHotKeyModifiers = modifiers;
+            _registeredHotKeyVirtualKey = settings.HotKeyVirtualKey;
+            ErrorLog.WriteInfo("HotKey", $"Registered. modifiers=0x{modifiers:X}, key=0x{settings.HotKeyVirtualKey:X}");
+            return true;
+        }
+
+        var win32Error = Marshal.GetLastWin32Error();
+        if (hadPrevious && NativeMethods.RegisterHotKey(_hwnd, HotKeyId,
+                previousModifiers | NativeMethods.MOD_NOREPEAT, previousVirtualKey))
+        {
+            _hotKeyRegistered = true;
+            _registeredHotKeyModifiers = previousModifiers;
+            _registeredHotKeyVirtualKey = previousVirtualKey;
+        }
+        else if (hadPrevious)
+        {
+            ErrorLog.WriteWarning("HotKey", "Unable to restore the previous global hotkey after registration failed.");
+        }
+
+        error = $"快捷键已被其他程序占用或无法注册（错误 {win32Error}），已保留原设置";
+        ErrorLog.WriteWarning("HotKey", error);
+        return false;
     }
 
     private void ReadControls()
@@ -129,6 +267,10 @@ public sealed partial class MainWindow : Window
         _settings.BloomStrength = BloomStrengthSlider.Value;
         _settings.Target = TargetCombo.SelectedIndex == 1 ? TargetScope.PauseWhenFullscreen : TargetScope.AllDesktop;
         _settings.FrameRate = FpsCombo.SelectedIndex switch { 0 => 60, 2 => 144, _ => 120 };
+        _settings.HotKeyEnabled = HotKeyToggle.IsOn;
+        _settings.HotKeyModifiers = GetHotKeyModifiersFromControls();
+        _settings.HotKeyVirtualKey = GetSelectedHotKeyVirtualKey();
+        _settings.PauseWhenCursorHidden = PauseWhenCursorHiddenToggle.IsOn;
         _settings.ExcludeEffectsFromCapture = CaptureExclusionToggle.IsOn;
         _settings.UseSystemCursor = SystemCursorToggle.IsOn;
         _settings.StartWithWindows = StartupToggle.IsOn;
@@ -141,7 +283,16 @@ public sealed partial class MainWindow : Window
     private void SaveAndApply()
     {
         var administratorSettingChanged = _settings.RunAsAdministrator != RunAsAdministratorToggle.IsOn;
+        var previousHotKey = (_settings.HotKeyEnabled, _settings.HotKeyModifiers, _settings.HotKeyVirtualKey);
         ReadControls();
+        if (!ApplyHotKeySettings(_settings, out var hotKeyError))
+        {
+            (_settings.HotKeyEnabled, _settings.HotKeyModifiers, _settings.HotKeyVirtualKey) = previousHotKey;
+            _initializing = true;
+            PopulateHotKeyControls();
+            _initializing = false;
+            throw new InvalidOperationException(hotKeyError);
+        }
         StartupManager.SetEnabled(_settings.StartWithWindows);
         if (_settings.Enabled) _controller.Start(_settings, _settings.CursorImagePath);
         else _controller.Stop();
@@ -216,6 +367,22 @@ public sealed partial class MainWindow : Window
     private void OnSliderValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (!_initializing) UpdateValueLabels();
+    }
+
+    private void OnHotKeyToggleChanged(object sender, RoutedEventArgs e)
+    {
+        SetHotKeyOptionsEnabled(HotKeyToggle.IsOn);
+    }
+
+    private void SetHotKeyOptionsEnabled(bool enabled)
+    {
+        if (HotKeyCtrlCheck is null) return;
+        HotKeyCtrlCheck.IsEnabled = enabled;
+        HotKeyAltCheck.IsEnabled = enabled;
+        HotKeyShiftCheck.IsEnabled = enabled;
+        HotKeyWinCheck.IsEnabled = enabled;
+        HotKeyKeyCombo.IsEnabled = enabled;
+        HotKeyOptionsPanel.Opacity = enabled ? 1 : 0.55;
     }
 
     private void UpdateValueLabels()
@@ -408,7 +575,7 @@ public sealed partial class MainWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
-        NativeMethods.UnregisterHotKey(_hwnd, HotKeyId);
+        if (_hotKeyRegistered) NativeMethods.UnregisterHotKey(_hwnd, HotKeyId);
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, SubclassId);
         NativeMethods.Shell_NotifyIcon(NativeMethods.NIM_DELETE, ref _trayData);
         _controller.StateChanged -= OnControllerStateChanged;

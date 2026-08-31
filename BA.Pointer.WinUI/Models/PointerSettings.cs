@@ -10,10 +10,11 @@ public enum TargetScope
 
 public sealed class PointerSettings
 {
-    public int SettingsVersion { get; set; } = 3;
+    public int SettingsVersion { get; set; } = 4;
     public bool Enabled { get; set; }
     public bool UseSystemCursor { get; set; } = true;
     public TargetScope Target { get; set; } = TargetScope.AllDesktop;
+    public bool PauseWhenCursorHidden { get; set; } = true;
     public bool ExcludeEffectsFromCapture { get; set; }
     public int FrameRate { get; set; } = 120;
     public double EffectScale { get; set; } = 0.5;
@@ -31,6 +32,9 @@ public sealed class PointerSettings
     public bool StartWithWindows { get; set; }
     public bool SilentStart { get; set; }
     public bool RunAsAdministrator { get; set; }
+    public bool HotKeyEnabled { get; set; } = true;
+    public uint HotKeyModifiers { get; set; } = 0x0001 | 0x0002;
+    public uint HotKeyVirtualKey { get; set; } = 0x50;
 
     [JsonIgnore]
     public string DisplayTarget => Target == TargetScope.AllDesktop ? "全部" : "有应用全屏时暂停";

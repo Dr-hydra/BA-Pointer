@@ -17,11 +17,23 @@ public sealed class DCompositionOverlayWindow : IDisposable
     private static ushort _windowClass;
 
     private readonly record struct MonitorDescriptor(
-        IntPtr Handle, int Left, int Top, int Width, int Height, bool IsPrimary)
+        IntPtr Handle, int Left, int Top, int Width, int Height, bool IsPrimary,
+        uint AutoHideEdges, IntPtr AutoHideBar)
     {
-        public string Key => $"{Handle.ToInt64():X}:{Left},{Top},{Width}x{Height}:{IsPrimary}";
+        private bool HasAutoHideEdge(uint edge) => (AutoHideEdges & (1u << (int)edge)) != 0;
+        public int OverlayLeft => Left + (HasAutoHideEdge(NativeMethods.ABE_LEFT) ? 1 : 0);
+        public int OverlayTop => Top + (HasAutoHideEdge(NativeMethods.ABE_TOP) ? 1 : 0);
+        public int OverlayWidth => Math.Max(1, Width -
+            (HasAutoHideEdge(NativeMethods.ABE_LEFT) ? 1 : 0) -
+            (HasAutoHideEdge(NativeMethods.ABE_RIGHT) ? 1 : 0));
+        public int OverlayHeight => Math.Max(1, Height -
+            (HasAutoHideEdge(NativeMethods.ABE_TOP) ? 1 : 0) -
+            (HasAutoHideEdge(NativeMethods.ABE_BOTTOM) ? 1 : 0));
+        public string Key => $"{Handle.ToInt64():X}:{Left},{Top},{Width}x{Height}:{IsPrimary}:" +
+                             $"edges={AutoHideEdges:X}:bar={AutoHideBar.ToInt64():X}";
         public override string ToString() =>
-            $"0x{Handle.ToInt64():X}@{Left},{Top},{Width}x{Height}{(IsPrimary ? ":primary" : string.Empty)}";
+            $"0x{Handle.ToInt64():X}@{Left},{Top},{Width}x{Height}{(IsPrimary ? ":primary" : string.Empty)}" +
+            $":autoHide={AutoHideEdges:X}";
     }
 
     private sealed class MonitorSurface
@@ -186,7 +198,7 @@ public sealed class DCompositionOverlayWindow : IDisposable
             NativeMethods.WS_EX_TOPMOST | NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_TOOLWINDOW |
             NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_NOREDIRECTIONBITMAP | NativeMethods.WS_EX_LAYERED,
             WindowClassName, "BA Pointer Effects", NativeMethods.WS_POPUP,
-            monitor.Left, monitor.Top, monitor.Width, monitor.Height,
+            monitor.OverlayLeft, monitor.OverlayTop, monitor.OverlayWidth, monitor.OverlayHeight,
             IntPtr.Zero, IntPtr.Zero, NativeMethods.GetModuleHandle(null), IntPtr.Zero);
         if (hwnd == IntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "无法创建 DirectComposition 覆盖窗口。");
@@ -201,8 +213,8 @@ public sealed class DCompositionOverlayWindow : IDisposable
 
             var dpi = NativeMethods.GetDpiForWindow(hwnd);
             if (dpi == 0) dpi = 96;
-            renderer = new DCompositionRenderer(hwnd, monitor.Left, monitor.Top,
-                monitor.Width, monitor.Height, dpi, randomSeed);
+            renderer = new DCompositionRenderer(hwnd, monitor.OverlayLeft, monitor.OverlayTop,
+                monitor.OverlayWidth, monitor.OverlayHeight, dpi, randomSeed, monitor.AutoHideBar);
             renderer.Configure(_settings);
             return new MonitorSurface { Monitor = monitor, Hwnd = hwnd, Dpi = dpi, Renderer = renderer };
         }
@@ -228,13 +240,16 @@ public sealed class DCompositionOverlayWindow : IDisposable
             var bounds = NativeMethods.GetMonitorInfo(monitor, ref monitorInfo)
                 ? monitorInfo.rcMonitor
                 : monitorRect;
+            var (autoHideEdges, autoHideBar) = GetAutoHideAppBars(bounds);
             monitors.Add(new MonitorDescriptor(
                 monitor,
                 bounds.Left,
                 bounds.Top,
                 Math.Max(1, bounds.Right - bounds.Left),
                 Math.Max(1, bounds.Bottom - bounds.Top),
-                (monitorInfo.dwFlags & NativeMethods.MONITORINFOF_PRIMARY) != 0));
+                (monitorInfo.dwFlags & NativeMethods.MONITORINFOF_PRIMARY) != 0,
+                autoHideEdges,
+                autoHideBar));
             return true;
         };
 
@@ -242,13 +257,23 @@ public sealed class DCompositionOverlayWindow : IDisposable
         {
             var left = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
             var top = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
+            var fallbackBounds = new NativeMethods.RECT
+            {
+                Left = left,
+                Top = top,
+                Right = left + Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN)),
+                Bottom = top + Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN))
+            };
+            var (autoHideEdges, autoHideBar) = GetAutoHideAppBars(fallbackBounds);
             monitors.Add(new MonitorDescriptor(
                 IntPtr.Zero,
                 left,
                 top,
-                Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN)),
-                Math.Max(1, NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN)),
-                true));
+                fallbackBounds.Right - fallbackBounds.Left,
+                fallbackBounds.Bottom - fallbackBounds.Top,
+                true,
+                autoHideEdges,
+                autoHideBar));
         }
 
         return monitors
@@ -256,6 +281,27 @@ public sealed class DCompositionOverlayWindow : IDisposable
             .ThenBy(monitor => monitor.Top)
             .ThenBy(monitor => monitor.Left)
             .ToArray();
+    }
+
+    private static (uint Edges, IntPtr FirstBar) GetAutoHideAppBars(NativeMethods.RECT monitorBounds)
+    {
+        uint edges = 0;
+        var firstBar = IntPtr.Zero;
+        for (uint edge = NativeMethods.ABE_LEFT; edge <= NativeMethods.ABE_BOTTOM; edge++)
+        {
+            var data = new NativeMethods.APPBARDATA
+            {
+                cbSize = (uint)Marshal.SizeOf<NativeMethods.APPBARDATA>(),
+                uEdge = edge,
+                rc = monitorBounds
+            };
+            var result = NativeMethods.SHAppBarMessage(NativeMethods.ABM_GETAUTOHIDEBAREX, ref data);
+            if (result == UIntPtr.Zero) continue;
+            edges |= 1u << (int)edge;
+            if (firstBar == IntPtr.Zero)
+                firstBar = new IntPtr(unchecked((long)result.ToUInt64()));
+        }
+        return (edges, firstBar);
     }
 
     private void WriteHeartbeat(DispatcherQueueTimer timer)

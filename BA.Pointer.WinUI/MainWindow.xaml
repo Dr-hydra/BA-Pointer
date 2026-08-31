@@ -172,6 +172,23 @@
                                     <ComboBoxItem Content="144 Hz" Tag="144" />
                                 </ComboBox>
                             </Grid>
+                            <ToggleSwitch x:Name="HotKeyToggle" Header="启用全局快捷键" Margin="0,0,0,12" Toggled="OnHotKeyToggleChanged" />
+                            <Grid x:Name="HotKeyOptionsPanel" Margin="0,0,0,18">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="切换特效快捷键" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="8">
+                                    <Grid RowSpacing="4">
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+                                        <CheckBox x:Name="HotKeyCtrlCheck" Content="Ctrl" />
+                                        <CheckBox x:Name="HotKeyAltCheck" Grid.Column="1" Content="Alt" />
+                                        <CheckBox x:Name="HotKeyShiftCheck" Grid.Row="1" Content="Shift" />
+                                        <CheckBox x:Name="HotKeyWinCheck" Grid.Row="1" Grid.Column="1" Content="Win" />
+                                    </Grid>
+                                    <ComboBox x:Name="HotKeyKeyCombo" HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
+                            <ToggleSwitch x:Name="PauseWhenCursorHiddenToggle" Header="系统光标隐藏时暂停特效" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="CaptureExclusionToggle" Header="防止特效被截图或录屏" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="SystemCursorToggle" Header="使用游戏素材替换系统默认箭头" Margin="0,0,0,12" />
                             <ToggleSwitch x:Name="StartupToggle" Header="登录 Windows 后自动启动" Margin="0,0,0,12" />

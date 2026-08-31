@@ -22,8 +22,15 @@ public sealed class SettingsStore
                 if (settings.SettingsVersion < 3)
                 {
                     settings.EffectScale = 0.5;
-                    settings.SettingsVersion = 3;
                 }
+                if (settings.SettingsVersion < 4)
+                {
+                    settings.PauseWhenCursorHidden = true;
+                    settings.HotKeyEnabled = true;
+                    settings.HotKeyModifiers = 0x0001 | 0x0002;
+                    settings.HotKeyVirtualKey = 0x50;
+                }
+                settings.SettingsVersion = 4;
                 return settings;
             }
         }

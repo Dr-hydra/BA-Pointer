@@ -63,6 +63,7 @@ public sealed class DCompositionRenderer : IDisposable
     private readonly string _assetDirectory;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly Random _random;
+    private readonly IntPtr _zOrderAnchor;
     private readonly Dictionary<PointerMouseButton, Touch> _activeTouches = new();
     private readonly List<Touch> _touches = new();
     private readonly List<ClickEffect> _clickEffects = new();
@@ -75,6 +76,8 @@ public sealed class DCompositionRenderer : IDisposable
     private bool _initialized;
     private bool _lastFrameHadContent = true;
     private double _lastForegroundCheck;
+    private double _lastCursorVisibilityCheck;
+    private bool _cursorVisible = true;
     private double _nextGraphicsMaintenanceAt;
     private double _nextGraphicsRecoveryAt;
     private int _graphicsRecoveryCount;
@@ -85,7 +88,8 @@ public sealed class DCompositionRenderer : IDisposable
     private int _height;
     private readonly uint _dpi;
 
-    public DCompositionRenderer(IntPtr hwnd, int originX, int originY, int width, int height, uint dpi, int randomSeed)
+    public DCompositionRenderer(IntPtr hwnd, int originX, int originY, int width, int height, uint dpi,
+        int randomSeed, IntPtr zOrderAnchor)
     {
         _hwnd = hwnd;
         _assetDirectory = Path.Combine(AppContext.BaseDirectory, "Assets");
@@ -95,6 +99,7 @@ public sealed class DCompositionRenderer : IDisposable
         _height = Math.Max(1, height);
         _dpi = dpi == 0 ? 96 : dpi;
         _random = new Random(randomSeed);
+        _zOrderAnchor = zOrderAnchor;
         RefreshPlacement();
     }
 
@@ -186,7 +191,8 @@ public sealed class DCompositionRenderer : IDisposable
         if (!_initialized) return;
 
         UpdateTargetState(now);
-        if (!_targetActive)
+        UpdateCursorVisibility(now);
+        if (!_targetActive || !_cursorVisible)
         {
             _activeTouches.Clear();
             _touches.Clear();
@@ -252,8 +258,7 @@ public sealed class DCompositionRenderer : IDisposable
 
         try
         {
-            if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
-                    NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
+            if (!PlaceOverlayWindow())
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to refresh overlay window placement.");
 
             _pipeline.RefreshCompositionBinding();
@@ -316,9 +321,22 @@ public sealed class DCompositionRenderer : IDisposable
 
     private void RefreshPlacement()
     {
-        if (!NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, _originX, _originY, _width, _height,
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
+        if (!PlaceOverlayWindow())
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to place the monitor overlay window.");
+    }
+
+    private bool PlaceOverlayWindow()
+    {
+        var insertAfter = _zOrderAnchor != IntPtr.Zero && NativeMethods.IsWindow(_zOrderAnchor)
+            ? _zOrderAnchor
+            : NativeMethods.HWND_TOPMOST;
+        if (NativeMethods.SetWindowPos(_hwnd, insertAfter, _originX, _originY, _width, _height,
+                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
+            return true;
+        if (insertAfter == NativeMethods.HWND_TOPMOST) return false;
+        return NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST,
+            _originX, _originY, _width, _height,
+            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
     }
 
     private void RenderFrame(double now)
@@ -550,6 +568,18 @@ public sealed class DCompositionRenderer : IDisposable
 
         _lastForegroundCheck = now;
         _targetActive = !IsForegroundWindowFullscreen();
+    }
+
+    private void UpdateCursorVisibility(double now)
+    {
+        if (!_settings.PauseWhenCursorHidden)
+        {
+            _cursorVisible = true;
+            return;
+        }
+        if (now - _lastCursorVisibilityCheck < 50) return;
+        _lastCursorVisibilityCheck = now;
+        _cursorVisible = CursorVisibility.IsVisibleOrUnknown();
     }
 
     private static bool IsForegroundWindowFullscreen()

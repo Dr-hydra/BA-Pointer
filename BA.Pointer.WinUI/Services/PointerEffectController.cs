@@ -11,6 +11,9 @@ public sealed class PointerEffectController : IDisposable
     private DCompositionOverlayWindow? _overlay;
     private MouseHook? _mouseHook;
     private bool _cursorApplied;
+    private bool _pauseWhenCursorHidden = true;
+    private readonly HashSet<PointerMouseButton> _forwardedButtons = new();
+    private long _hiddenCursorPresses;
 
     public PointerEffectController(CursorInstaller cursorInstaller, DispatcherQueue dispatcher)
     {
@@ -31,6 +34,8 @@ public sealed class PointerEffectController : IDisposable
         }
         try
         {
+            _pauseWhenCursorHidden = settings.PauseWhenCursorHidden;
+            Interlocked.Exchange(ref _hiddenCursorPresses, 0);
             ErrorLog.WriteInfo("Controller", $"Starting. reuseOverlay={_overlay is not null}, frameRate={settings.FrameRate}, target={settings.Target}");
             if (settings.UseSystemCursor) { _cursorInstaller.Install(cursorImagePath); _cursorApplied = true; }
             _overlay ??= new DCompositionOverlayWindow(_dispatcher, settings);
@@ -53,6 +58,7 @@ public sealed class PointerEffectController : IDisposable
 
     public void ApplySettings(PointerSettings settings, string cursorImagePath)
     {
+        _pauseWhenCursorHidden = settings.PauseWhenCursorHidden;
         _overlay?.Configure(settings);
         if (settings.UseSystemCursor) { _cursorInstaller.Install(cursorImagePath); _cursorApplied = true; }
         else if (_cursorApplied) { _cursorInstaller.Restore(); _cursorApplied = false; }
@@ -60,13 +66,16 @@ public sealed class PointerEffectController : IDisposable
 
     public void Stop()
     {
-        ErrorLog.WriteInfo("Controller", $"Stopping. overlayExists={_overlay is not null}, hookEvents={_mouseHook?.EventCount ?? 0}");
+        ErrorLog.WriteInfo("Controller", $"Stopping. overlayExists={_overlay is not null}, " +
+                                         $"hookEvents={_mouseHook?.EventCount ?? 0}, " +
+                                         $"hiddenCursorPresses={Interlocked.Read(ref _hiddenCursorPresses)}");
         if (_mouseHook is not null)
         {
             _mouseHook.MouseButtonChanged -= OnMouseButtonChanged;
             _mouseHook.Dispose();
             _mouseHook = null;
         }
+        _forwardedButtons.Clear();
         var overlay = _overlay;
         _overlay = null;
         overlay?.Dispose();
@@ -74,8 +83,25 @@ public sealed class PointerEffectController : IDisposable
         StateChanged?.Invoke(false);
     }
 
-    private void OnMouseButtonChanged(PointerMouseButton button, bool isDown, int x, int y) =>
-        _overlay?.SetPointerState(button, isDown, x, y);
+    private void OnMouseButtonChanged(PointerMouseButton button, bool isDown, int x, int y)
+    {
+        if (isDown)
+        {
+            if (_pauseWhenCursorHidden && !CursorVisibility.IsVisibleOrUnknown())
+            {
+                Interlocked.Increment(ref _hiddenCursorPresses);
+                if (_forwardedButtons.Remove(button))
+                    _overlay?.SetPointerState(button, false, x, y);
+                return;
+            }
+            _forwardedButtons.Add(button);
+            _overlay?.SetPointerState(button, true, x, y);
+            return;
+        }
+
+        if (_forwardedButtons.Remove(button))
+            _overlay?.SetPointerState(button, false, x, y);
+    }
 
     public void Dispose()
     {
