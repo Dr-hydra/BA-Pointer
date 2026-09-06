@@ -16,7 +16,7 @@ namespace BA.Pointer;
 
 public sealed partial class MainWindow : Window
 {
-    private const string AppVersion = "1.1.3";
+    private const string AppVersion = "1.1.4";
     private const string ProjectUrl = "https://github.com/Dr-hydra/BA-Pointer";
     private const string BilibiliUrl = "https://space.bilibili.com/441133155";
     private const int HotKeyId = 0xBA01;
@@ -355,13 +355,18 @@ public sealed partial class MainWindow : Window
 
     private void OnRestoreCursorClick(object sender, RoutedEventArgs e)
     {
-        _controller.Stop();
-        _cursorInstaller.Restore();
-        EnabledToggle.IsOn = false;
-        _settings.Enabled = false;
-        _store.Save(_settings);
-        SetRunningUi(false);
-        SetStatus("已恢复原系统光标", InfoBarSeverity.Success);
+        // Restoring the system cursor only disables cursor replacement. Keep
+        // the desktop effects running when they are enabled.
+        SystemCursorToggle.IsOn = false;
+        try
+        {
+            SaveAndApply();
+            SetStatus("已恢复原系统光标", InfoBarSeverity.Success);
+        }
+        catch (Exception exception)
+        {
+            SetStatus(exception.Message, InfoBarSeverity.Error);
+        }
     }
 
     private void OnSliderValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)

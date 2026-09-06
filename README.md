@@ -4,9 +4,9 @@
 
 ## 下载
 
-从 [v1.1.3 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3) 下载：
+从 [v1.1.4 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.4) 下载：
 
-- `BA.Pointer.WinUI-1.1.3-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
+- `BA.Pointer.WinUI-1.1.4-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
 
 这是一个 Windows x64 单文件程序，首次运行时会将内置的原生运行库和资源解压到用户临时目录。
 
@@ -23,6 +23,11 @@
 - 打开主界面时自动检查 GitHub 稳定版更新
 - 自动检测并恢复 Direct3D/DirectComposition 显示链路，开关特效时完整重建覆盖层
 - 停止效果或退出程序时恢复原系统指针
+
+## v1.1.4
+
+- 修复“恢复系统光标”误关闭全部桌面特效的问题
+- 恢复系统光标时仅关闭鼠标图案替换，并立即保存设置
 
 ## v1.1.3
 
@@ -88,9 +93,9 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download the following file from the [v1.1.3 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.3):
+Download the following file from the [v1.1.4 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.4):
 
-- `BA.Pointer.WinUI-1.1.3-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
+- `BA.Pointer.WinUI-1.1.4-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
 
 ### Features
 
@@ -104,6 +109,11 @@ Download the following file from the [v1.1.3 release](https://github.com/Dr-hydr
 - Tray controls, configurable global hotkey, silent startup, and optional administrator startup
 - Automatic stable-release checks when the main window is opened
 - Automatic Direct3D/DirectComposition health checks and overlay recovery
+
+### v1.1.4
+
+- Fixes the Restore System Cursor action disabling all desktop effects
+- Restoring the system cursor now only disables cursor replacement and saves immediately
 
 ### v1.1.3
 

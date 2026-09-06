@@ -122,9 +122,14 @@ public partial class MainWindow : Window
 
     private void OnRestoreCursorClick(object sender, RoutedEventArgs e)
     {
-        _controller.Stop();
-        _cursorInstaller.Restore();
-        _settings.Enabled = false;
+        // Restoring the system cursor only disables cursor replacement. Keep
+        // the desktop effects running when they are enabled.
+        SystemCursorCheck.IsChecked = false;
+        ReadControls();
+        if (_controller.IsRunning)
+            _controller.ApplySettings(_settings, _settings.CursorImagePath);
+        else
+            _cursorInstaller.Restore();
         _store.Save(_settings);
         SetStatus("已恢复原系统光标", false);
     }
