@@ -4,9 +4,9 @@
 
 ## 下载
 
-从 [v1.1.4 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.4) 下载：
+从 [v1.1.5 发布页](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.5) 下载：
 
-- `BA.Pointer.WinUI-1.1.4-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
+- `BA.Pointer.WinUI-1.1.5-x64.exe`：完整自包含版，内置 .NET 与 Windows App Runtime，适用于 Windows 10 19041 或更高版本。
 
 这是一个 Windows x64 单文件程序，首次运行时会将内置的原生运行库和资源解压到用户临时目录。
 
@@ -23,6 +23,13 @@
 - 打开主界面时自动检查 GitHub 稳定版更新
 - 自动检测并恢复 Direct3D/DirectComposition 显示链路，开关特效时完整重建覆盖层
 - 停止效果或退出程序时恢复原系统指针
+
+## v1.1.5
+
+- 修复退出全屏后特效覆盖层可能落到其他窗口下方的问题（#9）
+- 修复 `DXGI_STATUS_OCCLUDED` 被误判为图形管线故障并触发无效重建的问题
+- 修复“恢复系统光标”在进程状态与系统光标状态不同步时可能无法恢复的问题
+- 改进光标显隐切换时的特效状态同步与诊断日志
 
 ## v1.1.4
 
@@ -93,9 +100,9 @@ BA Pointer is a Windows desktop pointer and click-effects utility reconstructed 
 
 ### Download
 
-Download the following file from the [v1.1.4 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.4):
+Download the following file from the [v1.1.5 release](https://github.com/Dr-hydra/BA-Pointer/releases/tag/v1.1.5):
 
-- `BA.Pointer.WinUI-1.1.4-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
+- `BA.Pointer.WinUI-1.1.5-x64.exe`: fully self-contained, with .NET and Windows App Runtime included; supports Windows 10 19041 or later.
 
 ### Features
 
@@ -109,6 +116,13 @@ Download the following file from the [v1.1.4 release](https://github.com/Dr-hydr
 - Tray controls, configurable global hotkey, silent startup, and optional administrator startup
 - Automatic stable-release checks when the main window is opened
 - Automatic Direct3D/DirectComposition health checks and overlay recovery
+
+### v1.1.5
+
+- Fixes the effects overlay falling behind other windows after leaving fullscreen (#9)
+- Stops treating `DXGI_STATUS_OCCLUDED` as a graphics-pipeline failure that requires rebuilding
+- Fixes Restore System Cursor when the process state and actual system cursor state are out of sync
+- Improves cursor visibility transition synchronization and diagnostics
 
 ### v1.1.4
 
