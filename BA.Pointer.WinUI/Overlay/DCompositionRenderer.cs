@@ -15,6 +15,7 @@ public sealed class DCompositionRenderer : IDisposable
     private const double OriginalRingHdrIntensity = 5.992156982421875;
     private const double ReferencePixelsPerUnityUnit = 720;
     private const double GraphicsMaintenanceIntervalMs = 30_000;
+    private const double ZOrderMaintenanceIntervalMs = 500;
     private const double GraphicsRecoveryCooldownMs = 5_000;
     private const int MaximumTrailPoints = 320;
 
@@ -79,6 +80,7 @@ public sealed class DCompositionRenderer : IDisposable
     private double _lastCursorVisibilityCheck;
     private bool _cursorVisible = true;
     private double _nextGraphicsMaintenanceAt;
+    private double _nextZOrderMaintenanceAt;
     private double _nextGraphicsRecoveryAt;
     private int _graphicsRecoveryCount;
     private string _lastRecoveryReason = "none";
@@ -109,7 +111,8 @@ public sealed class DCompositionRenderer : IDisposable
     {
         var graphicsState = _pipeline?.GetDiagnosticState() ?? "pipeline=unavailable";
         return $"rendererRunning={_running}, initialized={_initialized}, targetActive={_targetActive}, " +
-               $"persistentEnabled={_settings.PersistentTrail}, persistentActive={_persistentTrail is not null}, " +
+               $"cursorVisible={_cursorVisible}, persistentEnabled={_settings.PersistentTrail}, " +
+               $"persistentActive={_persistentTrail is not null}, " +
                $"activeTouches={_activeTouches.Count}, touches={_touches.Count}, " +
                $"clickEffects={_clickEffects.Count}, moveParticles={_moveParticles.Count}, " +
                $"bounds={_originX},{_originY},{_width}x{_height}, dpi={_dpi}, recoveries={_graphicsRecoveryCount}, " +
@@ -153,6 +156,12 @@ public sealed class DCompositionRenderer : IDisposable
         if (!_running) return;
         var position = new Vector2(screenX - _originX, screenY - _originY);
         var now = _clock.Elapsed.TotalMilliseconds;
+        UpdateCursorVisibility(now, force: true);
+        if (!_cursorVisible)
+        {
+            if (!isDown) _activeTouches.Remove(button);
+            return;
+        }
         if (_settings.PersistentTrail)
         {
             if (isDown)
@@ -187,6 +196,7 @@ public sealed class DCompositionRenderer : IDisposable
         if (!_running) return;
         var now = _clock.Elapsed.TotalMilliseconds;
         if (!_initialized && !TryRecoverGraphics("pipeline unavailable", null, now)) return;
+        MaintainZOrder(now);
         MaintainGraphics(now);
         if (!_initialized) return;
 
@@ -238,8 +248,10 @@ public sealed class DCompositionRenderer : IDisposable
             _pipeline = pipeline;
             _initialized = true;
             _lastFrameHadContent = true;
-            _nextGraphicsMaintenanceAt = _clock.Elapsed.TotalMilliseconds + GraphicsMaintenanceIntervalMs;
-            RenderFrame(_clock.Elapsed.TotalMilliseconds);
+            var now = _clock.Elapsed.TotalMilliseconds;
+            _nextZOrderMaintenanceAt = now + ZOrderMaintenanceIntervalMs;
+            _nextGraphicsMaintenanceAt = now + GraphicsMaintenanceIntervalMs;
+            RenderFrame(now);
         }
         catch
         {
@@ -249,6 +261,15 @@ public sealed class DCompositionRenderer : IDisposable
             catch { }
             throw;
         }
+    }
+
+    private void MaintainZOrder(double now)
+    {
+        if (now < _nextZOrderMaintenanceAt) return;
+        _nextZOrderMaintenanceAt = now + ZOrderMaintenanceIntervalMs;
+
+        if (!PlaceOverlayWindow())
+            ErrorLog.WriteWarning("Renderer", "Unable to refresh overlay Z-order.");
     }
 
     private void MaintainGraphics(double now)
@@ -273,9 +294,9 @@ public sealed class DCompositionRenderer : IDisposable
     {
         try
         {
+            // DXGI_STATUS_OCCLUDED is a visibility state, not a device-loss condition.
+            // Keep the pipeline alive and let later Present calls recover naturally.
             RenderFrame(now);
-            if (_pipeline?.NeedsRecovery == true)
-                throw new InvalidOperationException("DXGI Present remained occluded for three consecutive frames.");
         }
         catch (Exception exception)
         {
@@ -327,9 +348,7 @@ public sealed class DCompositionRenderer : IDisposable
 
     private bool PlaceOverlayWindow()
     {
-        var insertAfter = _zOrderAnchor != IntPtr.Zero && NativeMethods.IsWindow(_zOrderAnchor)
-            ? _zOrderAnchor
-            : NativeMethods.HWND_TOPMOST;
+        var insertAfter = GetSafeZOrderAnchor();
         if (NativeMethods.SetWindowPos(_hwnd, insertAfter, _originX, _originY, _width, _height,
                 NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
             return true;
@@ -337,6 +356,19 @@ public sealed class DCompositionRenderer : IDisposable
         return NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST,
             _originX, _originY, _width, _height,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+    }
+
+    private IntPtr GetSafeZOrderAnchor()
+    {
+        if (_zOrderAnchor == IntPtr.Zero || !NativeMethods.IsWindow(_zOrderAnchor))
+            return NativeMethods.HWND_TOPMOST;
+
+        var exStyle = unchecked((ulong)NativeMethods
+            .GetWindowLongPtr(_zOrderAnchor, NativeMethods.GWL_EXSTYLE)
+            .ToInt64());
+        return (exStyle & (ulong)NativeMethods.WS_EX_TOPMOST) != 0
+            ? _zOrderAnchor
+            : NativeMethods.HWND_TOPMOST;
     }
 
     private void RenderFrame(double now)
@@ -570,16 +602,24 @@ public sealed class DCompositionRenderer : IDisposable
         _targetActive = !IsForegroundWindowFullscreen();
     }
 
-    private void UpdateCursorVisibility(double now)
+    private void UpdateCursorVisibility(double now, bool force = false)
     {
         if (!_settings.PauseWhenCursorHidden)
         {
+            if (!_cursorVisible)
+                ErrorLog.WriteInfo("Renderer", "Cursor visibility changed. old=False, new=True, pauseDisabled=True");
             _cursorVisible = true;
             return;
         }
-        if (now - _lastCursorVisibilityCheck < 50) return;
+        if (!force && now - _lastCursorVisibilityCheck < 50) return;
         _lastCursorVisibilityCheck = now;
-        _cursorVisible = CursorVisibility.IsVisibleOrUnknown();
+
+        var visible = CursorVisibility.IsVisibleOrUnknown();
+        if (visible == _cursorVisible) return;
+
+        ErrorLog.WriteInfo("Renderer",
+            $"Cursor visibility changed. old={_cursorVisible}, new={visible}, forced={force}");
+        _cursorVisible = visible;
     }
 
     private static bool IsForegroundWindowFullscreen()
