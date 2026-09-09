@@ -37,7 +37,18 @@ public sealed class PointerEffectController : IDisposable
             _pauseWhenCursorHidden = settings.PauseWhenCursorHidden;
             Interlocked.Exchange(ref _hiddenCursorPresses, 0);
             ErrorLog.WriteInfo("Controller", $"Starting. reuseOverlay={_overlay is not null}, frameRate={settings.FrameRate}, target={settings.Target}");
-            if (settings.UseSystemCursor) { _cursorInstaller.Install(cursorImagePath); _cursorApplied = true; }
+            if (settings.UseSystemCursor)
+            {
+                _cursorInstaller.Install(cursorImagePath);
+                _cursorApplied = true;
+            }
+            else
+            {
+                // Clear a cursor left behind by an interrupted previous run,
+                // even though this process never marked it as applied.
+                _cursorInstaller.Restore();
+                _cursorApplied = false;
+            }
             _overlay ??= new DCompositionOverlayWindow(_dispatcher, settings);
             _overlay.Configure(settings);
             _overlay.Start();
@@ -60,8 +71,17 @@ public sealed class PointerEffectController : IDisposable
     {
         _pauseWhenCursorHidden = settings.PauseWhenCursorHidden;
         _overlay?.Configure(settings);
-        if (settings.UseSystemCursor) { _cursorInstaller.Install(cursorImagePath); _cursorApplied = true; }
-        else if (_cursorApplied) { _cursorInstaller.Restore(); _cursorApplied = false; }
+        if (settings.UseSystemCursor)
+        {
+            _cursorInstaller.Install(cursorImagePath);
+            _cursorApplied = true;
+        }
+        else
+        {
+            if (!_cursorInstaller.Restore())
+                throw new InvalidOperationException("无法恢复系统光标，请重试。");
+            _cursorApplied = false;
+        }
     }
 
     public void Stop()
