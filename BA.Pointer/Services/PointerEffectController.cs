@@ -29,11 +29,6 @@ public sealed class PointerEffectController : IDisposable
                 _cursorInstaller.Install(cursorImagePath);
                 _cursorApplied = true;
             }
-            else
-            {
-                _cursorInstaller.Restore();
-                _cursorApplied = false;
-            }
             _overlay = new OverlayWindow(settings, cursorImagePath);
             _overlay.Show();
             _overlay.Start();
@@ -58,10 +53,9 @@ public sealed class PointerEffectController : IDisposable
             _cursorInstaller.Install(cursorImagePath);
             _cursorApplied = true;
         }
-        else
+        else if (_cursorApplied)
         {
-            if (!_cursorInstaller.Restore())
-                throw new InvalidOperationException("无法恢复系统光标，请重试。");
+            _cursorInstaller.Restore();
             _cursorApplied = false;
         }
     }

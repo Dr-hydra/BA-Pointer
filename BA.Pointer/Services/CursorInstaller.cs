@@ -22,64 +22,35 @@ public sealed class CursorInstaller
     {
         var cursorPath = EnsureCursorFile(pngPath);
         var keyPath = @"Control Panel\Cursors";
-        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(keyPath, writable: true)
-            ?? throw new InvalidOperationException("无法访问当前用户光标设置。");
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(keyPath, writable: true) ?? throw new InvalidOperationException("无法访问当前用户光标设置。");
         if (!File.Exists(_store.CursorBackupPath))
         {
             var original = key.GetValue("Arrow") as string ?? string.Empty;
-            if (IsManagedCursorPath(original)) original = string.Empty;
             File.WriteAllText(_store.CursorBackupPath, JsonSerializer.Serialize(new CursorBackup(original)));
         }
         key.SetValue("Arrow", cursorPath);
-        if (!NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETCURSORS, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE))
-            throw new InvalidOperationException("无法应用系统光标设置。");
+        NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETCURSORS, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE);
     }
 
-    public bool Restore()
+    public void Restore()
     {
+        if (!File.Exists(_store.CursorBackupPath)) return;
         try
         {
+            var backup = JsonSerializer.Deserialize<CursorBackup>(File.ReadAllText(_store.CursorBackupPath));
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\Cursors", writable: true);
-            if (key is null) return false;
-
-            var current = key.GetValue("Arrow") as string ?? string.Empty;
-            var backupExists = File.Exists(_store.CursorBackupPath);
-            string? restorePath = null;
-
-            if (backupExists)
+            if (key is not null && backup is not null)
             {
-                var backup = JsonSerializer.Deserialize<CursorBackup>(File.ReadAllText(_store.CursorBackupPath));
-                if (backup is null) return false;
-                restorePath = backup.ArrowPath ?? string.Empty;
-                if (IsManagedCursorPath(restorePath)) restorePath = string.Empty;
+                key.SetValue("Arrow", backup.ArrowPath ?? string.Empty);
+                NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETCURSORS, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE);
+                File.Delete(_store.CursorBackupPath);
             }
-            else if (IsManagedCursorPath(current))
-            {
-                restorePath = string.Empty;
-            }
-            else
-            {
-                return true;
-            }
-
-            key.SetValue("Arrow", restorePath);
-            if (!NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETCURSORS, 0, IntPtr.Zero, NativeMethods.SPIF_SENDCHANGE))
-                return false;
-
-            if (backupExists) File.Delete(_store.CursorBackupPath);
-            return true;
         }
         catch
         {
-            // Restore is best effort during shutdown; explicit apply paths can
-            // inspect the return value and report a failure to the user.
-            return false;
+            // Restore is best effort; never prevent the application from closing.
         }
     }
-
-    private bool IsManagedCursorPath(string? path) =>
-        !string.IsNullOrWhiteSpace(path) &&
-        string.Equals(path.Trim(), _store.CursorPath, StringComparison.OrdinalIgnoreCase);
 
     private static void CreateCursorFile(string pngPath, string outputPath, int hotspotX, int hotspotY)
     {
